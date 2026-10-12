@@ -283,6 +283,10 @@ class _FakeWin:
     def show_bubble(self, text, duration_ms=3200, subtitle=None):
         self.bubbles.append(text)
 
+    def try_show_bubble(self, text, duration_ms=3200):
+        self.show_bubble(text, duration_ms)
+        return True
+
 
 class _FakeApp:
     def __init__(self, tmp_path, visible: bool = True) -> None:
@@ -295,6 +299,7 @@ class _FakeApp:
 
     def system_notify(self, title, message, *, on_click=None, duration_ms=5000):
         self.notifies.append((title, message, on_click))
+        return True
 
     def open_todo_panel(self):
         self.panel_opens += 1

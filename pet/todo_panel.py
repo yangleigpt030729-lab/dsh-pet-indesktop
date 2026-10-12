@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QTimeEdit,
@@ -273,7 +274,8 @@ class TodoPanelDialog(QDialog):
         return self._app.todo_service.items()
 
     def _save_items(self, items: list[dict]) -> None:
-        self._app.todo_service.set_items(items)
+        if self._app.todo_service.set_items(items) is False:
+            QMessageBox.warning(self, '待办暂未保存', '条目保留在当前进程，将重试保存。请检查用户目录权限；成功保存前不要退出。')
 
     def reload_items(self) -> None:
         """重建条目行并刷新空态/下一条摘要（增删改与外部变化统一入口）。"""

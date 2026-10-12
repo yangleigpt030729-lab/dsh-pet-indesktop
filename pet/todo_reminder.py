@@ -20,12 +20,13 @@ import logging
 import os
 import re
 import uuid
+import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-TODO_ITEMS_VERSION = 1
+TODO_ITEMS_VERSION = 2
 TODO_ITEMS_LIMIT = 100
 TODO_TITLE_LIMIT = 80
 TODO_KINDS = ("once", "daily")
@@ -93,6 +94,19 @@ def clean_todo_items(value) -> list[dict]:
         for key in ("fired_lead_slot", "fired_due_slot"):
             slot = raw.get(key)
             item[key] = slot if isinstance(slot, str) and slot else None
+        delivery = raw.get('delivery')
+        if isinstance(delivery, dict):
+            item['delivery'] = {}
+            for phase in ('lead', 'due'):
+                state = delivery.get(phase)
+                if (isinstance(state, dict) and state.get('status') in ('pending', 'presenting', 'delivered')
+                        and all(isinstance(state.get(k), str) and len(state[k]) <= 128
+                                for k in ('slot', 'token', 'signature'))):
+                    try:
+                        lease = max(0, min(1e12, float(state.get('lease', 0))))
+                    except (TypeError, ValueError, OverflowError):
+                        lease = 0
+                    item['delivery'][phase] = {**{k: state[k] for k in ('slot', 'token', 'signature', 'status')}, 'lease': lease}
         items.append(item)
     return items
 
@@ -140,6 +154,13 @@ def advance_todo_state(items, prefs, now: datetime, *,
             new_items.append(item)
             continue
         lead_dt, due_dt = _fire_datetimes(item, lead_minutes, now)
+        if item.get('kind') == 'daily' and due_dt is not None:
+            if due_dt > now and timedelta(0) <= now-(due_dt-timedelta(days=1)) <= grace:
+                due_dt -= timedelta(days=1)
+                lead_dt = due_dt-timedelta(minutes=lead_minutes) if lead_minutes else None
+            elif lead_dt is not None and lead_dt+timedelta(days=1) <= now < due_dt+timedelta(days=1):
+                due_dt += timedelta(days=1)
+                lead_dt += timedelta(days=1)
         time_text = _normalize_hhmm(item.get("time")) or str(item.get("time") or "")
         for phase, fire_dt, slot_key in (
             ("lead", lead_dt, "fired_lead_slot"),
@@ -148,7 +169,7 @@ def advance_todo_state(items, prefs, now: datetime, *,
             if fire_dt is None or now < fire_dt:
                 continue
             slot = f"{fire_dt.date().isoformat()}T{time_text}#{phase}"
-            if item.get(slot_key) == slot:
+            if item.get(slot_key) and item[slot_key] >= slot:
                 continue
             item[slot_key] = slot
             if now <= fire_dt + grace:
@@ -218,6 +239,7 @@ class TodoStore:
 
     def __init__(self, path) -> None:
         self.path = Path(path)
+        self._transaction = threading.local()
 
     def load(self) -> list[dict]:
         try:
@@ -229,6 +251,14 @@ class TodoStore:
         return clean_todo_items(raw.get("items"))
 
     def save(self, items) -> bool:
+        from .todo_delivery import locked
+        try:
+            with locked(self) as acquired:
+                return self._save_atomic(items) if acquired else False
+        except OSError:
+            return False
+
+    def _save_atomic(self, items) -> bool:
         """原子落盘；IO 失败记日志并清理临时文件（盖戳丢失仅可能在宽限窗
         内导致一次重复提醒，优于让异常从 QTimer slot 炸出）。"""
         payload = {"version": TODO_ITEMS_VERSION, "items": clean_todo_items(items)}
@@ -275,23 +305,40 @@ class TodoReminderService:
             getattr(config, "instance_id", "") or "",
         ))
         self._items: list[dict] = []
+        self._confirmed = {}
+        self._pending_items = None
         self._prefs: dict = {"enabled": True, "lead_minutes": 0}
         self._notify_enabled = True
         self._timer = QTimer()
         self._timer.setInterval(self.TICK_INTERVAL_MS)
-        self._timer.timeout.connect(self._on_tick)
+        self._timer.timeout.connect(self.request_tick)
+        from .todo_async import TodoDiskWorker
+        self._disk = TodoDiskWorker(self)
 
     def start(self) -> None:
+        if self._disk.closed:
+            from .todo_async import TodoDiskWorker
+            self._disk = TodoDiskWorker(self)
         self.apply_config()
         # 启动即推进一次：登录自启等场景下宽限窗内的提醒不必等首个 30s tick
-        self._on_tick()
+        self.request_tick()
         self._timer.start()
 
     def stop(self) -> None:
         self._timer.stop()
+        self._disk.close()
+
+    @property
+    def busy(self):
+        return self._disk.busy
+
+    def request_tick(self, now=None):
+        """Production timer path: disk work off-thread, presentation queued to Qt."""
+        self._disk.request(now or datetime.now())
 
     def apply_config(self) -> None:
         """重读偏好与条目（设置保存、面板保存后调用）。"""
+        self._disk.generation += 1
         config = getattr(self._app, "config", None)
         try:
             lead = int(config.get("todo_reminder_lead_minutes", 5) or 0)
@@ -305,43 +352,65 @@ class TodoReminderService:
         self._notify_enabled = (
             bool(config.get("system_notifications_enabled", True)) if config else True
         )
-        self._items = self._store.load()
+        if self._pending_items is None:
+            self._items = self._store.load()
 
     def items(self) -> list[dict]:
         """当前条目（面板打开时以服务内副本为准，保存路径仍走 store）。"""
         return list(self._items)
 
-    def set_items(self, items: list[dict], *, save: bool = True) -> None:
+    def set_items(self, items: list[dict], *, save: bool = True) -> bool:
         """面板保存入口：整体替换条目并立即落盘。"""
+        self._disk.generation += 1
         self._items = clean_todo_items(items)
         if save:
-            self._store.save(self._items)
+            self._pending_items = self._items
+            if not self._store.save(self._items):
+                return False
+            self._pending_items = None
+        return True
 
     def _on_tick(self, now: datetime | None = None) -> None:
         if not self._prefs.get("enabled"):
             return
-        fires, new_items = advance_todo_state(
-            self._items, self._prefs, now or datetime.now()
-        )
-        if new_items != self._items:
-            self._items = new_items
-            self._store.save(new_items)
+        from .todo_delivery import reserve, finish, event_key
+        if self._pending_items is not None:
+            if not self._store.save(self._pending_items):
+                return
+            self._pending_items = None
+        for key, fire in list(self._confirmed.items()):
+            if finish(self._store, fire, True):
+                self._confirmed.pop(key, None)
+        try:
+            fires = reserve(self._store, self._prefs, now or datetime.now(), self._confirmed)
+        except OSError:
+            return
         for fire in fires:
-            self._notify_fire(fire)
+            try:
+                shown = self._notify_fire(fire)
+            except Exception:
+                shown = False
+            if shown:
+                self._confirmed[event_key(fire)] = fire
+            if finish(self._store, fire, shown):
+                self._confirmed.pop(event_key(fire), None)
+        self._items = self._store.load()
 
-    def _notify_fire(self, fire: dict) -> None:
+    def _notify_fire(self, fire: dict) -> bool:
         app = self._app
         text = f"⏰ 待办提醒：{fire['title']}（{fire['time']}）"
         win = getattr(app, "win", None)
         if win is not None and win.isVisible() and not self._bubble_suppressed():
-            win.show_bubble(text, duration_ms=self.BUBBLE_DURATION_MS)
-            return
+            present = getattr(win, 'try_show_bubble', None)
+            if callable(present) and present(text, duration_ms=self.BUBBLE_DURATION_MS) is True:
+                return True
         if not self._notify_enabled:
-            return
+            return False
         notify = getattr(app, "system_notify", None)
         if callable(notify):
-            notify("待办提醒", f"{fire['title']}（{fire['time']}）",
-                   on_click=getattr(app, "open_todo_panel", None))
+            return notify("待办提醒", f"{fire['title']}（{fire['time']}）",
+                          on_click=getattr(app, "open_todo_panel", None)) is True
+        return False
 
     def _bubble_suppressed(self) -> bool:
         """设置窗口打开期间暂停气泡（与 PetInstance._update_bubble_suppression_for_settings
@@ -350,4 +419,5 @@ class TodoReminderService:
         return (
             getattr(app, "modern_settings_dialog", None) is not None
             or getattr(app, "chat_settings_dialog", None) is not None
+            or bool(getattr(app, '_settings_child_active', False))
         )

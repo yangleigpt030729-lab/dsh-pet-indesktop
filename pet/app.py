@@ -3461,7 +3461,7 @@ class AppShell:
         """「启用/关闭节日提醒」开关（默认隐藏、菜单编辑器可加回）：翻转配置并同步服务启停。"""
         self._toggle_flag("festival_reminder_enabled", self._sync_festival_service)
 
-    def system_notify(self, title: str, message: str, *, on_click=None, duration_ms: int = 5000) -> None:
+    def system_notify(self, title: str, message: str, *, on_click=None, duration_ms: int = 5000) -> bool:
         """Show a bottom-right desktop notification (self-drawn, tray-independent)."""
         self._prune_toasts()
         toast = DesktopNotification(
@@ -3474,6 +3474,7 @@ class AppShell:
         toast.destroyed.connect(lambda _obj=None: self._prune_toasts())
         toast.show()
         position_stack(self._toast_windows)
+        return toast.isVisible()
 
     def _prune_toasts(self) -> None:
         self._toast_windows = [
