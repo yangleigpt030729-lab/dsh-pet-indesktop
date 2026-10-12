@@ -185,6 +185,20 @@ class _AiSettingsPage(QWidget):
             SettingRow("system_prompt", "System Prompt", "定义桌宠对话时的身份、语气和行为。", self.prompt, stacked=True),
             SettingRow("connection_test", "连接测试", self.test_result.text(), self.test_button),
         ], self))
+        self.memory_enabled = ToggleSwitch()
+        self.memory_enabled.setChecked(self.settings.memory_enabled)
+        self.memory_auto_extract = ToggleSwitch()
+        self.memory_auto_extract.setChecked(self.settings.memory_auto_extract)
+        self.memory_auto_extract.setEnabled(self.settings.memory_enabled)
+        self.memory_manage = QPushButton("查看与管理…", self)
+        self.memory_manage.clicked.connect(self._open_memory)
+        self.memory_enabled.toggled.connect(self._save_memory_policy)
+        self.memory_auto_extract.toggled.connect(self._save_memory_policy)
+        root.addWidget(SettingsSection("长期记忆", [
+            SettingRow("memory_enabled", "启用长期记忆", "默认关闭。开启后检索本地记忆供模型参考；明确的“请记住”也会保存。立即生效。", self.memory_enabled),
+            SettingRow("memory_auto_extract", "自动保存明确表达", "另行授权后，自动保存用户明确说出的喜好与事件。仅支持保守规则，不存推测、口令或病史。", self.memory_auto_extract),
+            SettingRow("memory_manage", "本地记忆管理", "查看、纠错、删除或备份。删除记忆与清理聊天历史是两个独立操作。", self.memory_manage),
+        ], self))
         root.addWidget(SettingsSection("系统通知", [
             SettingRow(
                 "system_notifications_enabled", "系统通知",
@@ -551,6 +565,25 @@ class _AiSettingsPage(QWidget):
             int(self.tokens.value()),
             verify_ssl=not self.skip_ssl.isChecked(),
         )
+
+    def _save_memory_policy(self, _checked=None):
+        # Immediate privacy choices merge with the latest on-disk chat settings,
+        # independently of provider drafts and the enclosing form's save button.
+        from ..companion.memory_context import MemoryContext
+        MemoryContext.set_runtime_policy(self.config.path, self.memory_enabled.isChecked())
+        self.config.reload()
+        current = self.config.chat_settings()
+        current.memory_enabled = self.memory_enabled.isChecked()
+        current.memory_auto_extract = self.memory_auto_extract.isChecked()
+        self.config.set_chat_settings(current)
+        if not self.config.save():
+            QMessageBox.warning(self, "记忆设置保存失败", "本次程序中的旧记忆任务已取消，但设置未保存。请检查用户目录写入权限；重启前重试保存。")
+        self.memory_auto_extract.setEnabled(current.memory_enabled)
+
+    def _open_memory(self):
+        from ..companion.memory_dialog import MemoryDialog
+        dialog = MemoryDialog(self.config.dir, self)
+        dialog.exec()
 
     def _run_test(self) -> None:
         if self._test_thread is not None and self._test_thread.is_alive():

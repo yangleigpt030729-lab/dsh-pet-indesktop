@@ -395,6 +395,8 @@ def _default_chat_data():
         "default_system_prompt": "\u4f60\u662f\u4e00\u53ea\u53ef\u7231\u7684\u684c\u9762\u5ba0\u7269\uff0c\u8bf7\u7528\u81ea\u7136\u3001\u53cb\u5584\u7684\u4e2d\u6587\u548c\u7528\u6237\u4ea4\u6d41\u3002",
         "history_message_limit": 40,
         "history_char_limit": 24000,
+        "memory_enabled": False,
+        "memory_auto_extract": False,
         "providers": {
             "openai-main": {
                 "name": "DeepSeek",
@@ -434,6 +436,8 @@ def _merge_chat_data(raw):
                 providers[str(provider_id)] = base
     else:
         providers = dict(result["providers"])
+    for key in ("memory_enabled", "memory_auto_extract"):
+        result[key] = raw.get(key) is True
     result["providers"] = providers or _default_chat_data()["providers"]
     active = str(result.get("active_provider") or "")
     result["active_provider"] = active if active in result["providers"] else next(iter(result["providers"]))

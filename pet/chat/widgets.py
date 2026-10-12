@@ -1859,7 +1859,14 @@ class ChatWindow(QDialog):
         if image_payloads:
             messages[-1]["content"] = [{"type": "text", "text": text}, *image_payloads]
         self._last_user_payload = messages[-1].get("content") if image_payloads else None
-        self._active_request_id = self.service.send(messages, config)
+        memory_kwargs = {}
+        if self.config.chat_settings().memory_enabled:
+            from ..companion.memory_context import MemoryContext
+            # Extract from the actual typed message, never attached file contents.
+            user_message = next((m.content for m in reversed(self.session.messages) if m.role == "user"), "")
+            memory_text = user_message.split("\n\n附件：", 1)[0]
+            memory_kwargs["memory_context"] = MemoryContext.from_config(self.config, memory_text)
+        self._active_request_id = self.service.send(messages, config, **memory_kwargs)
         self._bottom()
 
     def _focus_chat(self) -> None:

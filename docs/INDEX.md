@@ -75,6 +75,8 @@
 
 ## 聊天、语音与内容功能
 
+- [AI-COMPANION-INTEGRATION-NOTES.md](AI-COMPANION-INTEGRATION-NOTES.md)：P0/P1 接入审计、SQLite schema、授权与线程边界；修改长期记忆或聊天接入前必读。
+
 | 文档 | 一句话内容 | 何时必读 |
 |---|---|---|
 | [`CHAT-BACKGROUND-DISPLAY-2026-08-27.md`](CHAT-BACKGROUND-DISPLAY-2026-08-27.md) | AI 对话背景显示调整记录：两套窗口各自的背景图片/不透明度/填充模式，以及消息卡片可读性方案。 | 改对话窗口背景、`cover`/`contain`/`stretch` 语义、或消息区 QSS（`message-bubble` vs `message-surface`、`QScrollArea` 调色板）时。 |
@@ -130,6 +132,8 @@
 ---
 
 ## PR 报告存档
+
+- [PR-REPORT-COMPANION-MEMORY-2026-10-12.md](PR-REPORT-COMPANION-MEMORY-2026-10-12.md)：P0/P1 交付、逐文件变化、真实性能/测试和 Windows 10 未验证清单。
 
 | 文档 | 一句话内容 | 何时必读 |
 |---|---|---|

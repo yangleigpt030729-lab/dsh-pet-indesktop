@@ -1836,6 +1836,7 @@ class ModernSettingsDialog(QDialog):
                             "connection_test",
                         ),
                     ),
+                    ("长期记忆", claim("memory_enabled", "memory_auto_extract", "memory_manage")),
                     ("系统通知", claim("system_notifications_enabled")),
                     (
                         "视觉能力",

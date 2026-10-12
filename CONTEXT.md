@@ -101,3 +101,12 @@ Windows session fails DLL initialization (0xc0000142) and blocks shutdown.
 The freeze is one-way: a process that survives a cancelled shutdown stays
 frozen rather than resuming animation.
 _Avoid_: Shutdown option, ffmpeg kill switch
+
+**Local Long-Term Memory**:
+User-authorized facts stored in SQLite below the existing user data directory,
+shared by sessions and characters in that directory. Reading and automatic
+extraction have separate, default-off consent switches in AI 与对话. Disabling
+reading prevents database access in chat requests; explicit management remains
+available. Memory records are quoted data, never model-generated user facts or
+instructions. Deleting memory and deleting chat history are separate actions.
+_Avoid_: Chat history summary, inferred user profile

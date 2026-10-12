@@ -7,10 +7,11 @@ from .models import ProviderConfig
 from .providers import OpenAICompatibleProvider
 class _Worker(QThread):
     delta_received=Signal(str); completed=Signal(str); failed=Signal(str); stopped_by_user=Signal()
-    def __init__(self,provider,messages,config,cancel):
+    def __init__(self,provider,messages,config,cancel,memory_context=None):
         super().__init__()
         self.provider=provider; self.messages=messages; self.config=config; self.cancel=cancel; self.parts=[]
         self._responses = []
+        self.memory_context = memory_context
     def cancel_response(self):
         self.cancel.set()
         for resp in list(self._responses):
@@ -18,18 +19,29 @@ class _Worker(QThread):
             except Exception: pass
     def run(self):
         try:
+            messages, memory_token = self.messages, None
+            if self.memory_context is not None:
+                messages, memory_token = self.memory_context.prepare(messages)
+            if self.cancel.is_set():
+                self.stopped_by_user.emit()
+                return
             stream_kwargs = {}
             import inspect
             sig = inspect.signature(self.provider.stream)
             if 'response_holder' in sig.parameters:
                 stream_kwargs['response_holder'] = self._responses
-            for text in self.provider.stream(self.messages,self.config,self.cancel,**stream_kwargs):
+            for text in self.provider.stream(messages,self.config,self.cancel,**stream_kwargs):
                 if self.cancel.is_set(): self.stopped_by_user.emit(); return
                 self.parts.append(text); self.delta_received.emit(text)
             if self.cancel.is_set(): self.stopped_by_user.emit()
             else:
                 result = ''.join(self.parts)
                 if result.strip():
+                    if self.memory_context is not None and not self.cancel.is_set():
+                        self.memory_context.completed(memory_token)
+                    if self.cancel.is_set():
+                        self.stopped_by_user.emit()
+                        return
                     self.completed.emit(result)
                 else:
                     self.failed.emit('模型未返回任何内容，请稍后重试或检查模型配置。')
@@ -75,8 +87,8 @@ class ChatService(QObject):
         return not any(worker.isRunning() for worker in self._workers)
     @property
     def busy(self): return self._worker is not None and self._worker.isRunning()
-    def send(self,messages:list[dict[str,Any]],config:ProviderConfig,request_id=None):
-        self.stop(); rid=request_id or uuid.uuid4().hex; cancel=threading.Event(); worker=_Worker(self.provider,messages,config,cancel); self._request_id=rid; self._cancel=cancel; self._worker=worker
+    def send(self,messages:list[dict[str,Any]],config:ProviderConfig,request_id=None,*,memory_context=None):
+        self.stop(); rid=request_id or uuid.uuid4().hex; cancel=threading.Event(); worker=_Worker(self.provider,messages,config,cancel,memory_context); self._request_id=rid; self._cancel=cancel; self._worker=worker
         self._workers.add(worker)
         # 全部显式 QueuedConnection：worker 线程 emit 的信号若直连 lambda
         # 会在 worker 线程执行 _delta/_cleanup 等，与 GUI 线程的 busy()/

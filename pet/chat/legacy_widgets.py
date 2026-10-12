@@ -930,7 +930,11 @@ class ChatWindow(QDialog):
         config = self.settings.active_config
         config.api_key = self.config.resolve_api_key(config)
         messages = self.prompt_builder.build_messages(self.settings, self.character_id, self.session.messages[:-1], text)
-        self._active_request_id = self.service.send(messages, config)
+        memory_kwargs = {}
+        if self.config.chat_settings().memory_enabled:
+            from ..companion.memory_context import MemoryContext
+            memory_kwargs["memory_context"] = MemoryContext.from_config(self.config, text)
+        self._active_request_id = self.service.send(messages, config, **memory_kwargs)
         self._bottom()
 
     def _focus_chat(self) -> None:
