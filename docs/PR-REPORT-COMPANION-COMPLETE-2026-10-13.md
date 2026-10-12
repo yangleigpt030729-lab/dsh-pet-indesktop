@@ -101,7 +101,7 @@
 | `tests/test_sprite_feeding.py` | +7/−0 | 原投喂测试等待worker完成，保留动画/统计/来源断言。 |
 | `tests/test_todo_delivery.py`（新增） | +182/−0 | 失败/重启/忙锁删除/跨日/多实例/GUI外磁盘/宽限复检的可靠投递。 |
 | `tests/test_todo_reminder.py` | +5/−0 | 原fake宿主提供真实bool回执，原提醒规则断言保留。 |
-| `docs/PR-REPORT-COMPANION-COMPLETE-2026-10-13.md`（新增） | +222/−0 | 本次逐文件/红绿/性能/平台边界证据与集中验收索引。 |
+| `docs/PR-REPORT-COMPANION-COMPLETE-2026-10-13.md`（新增） | +233/−0 | 本次逐文件/红绿/性能/平台边界证据与集中验收索引。 |
 
 ## 三、真正的接入链、数据与边界
 
@@ -209,7 +209,18 @@ node integrations/dsh-pet-bridge/verify_import.mjs
 
 Windows Chat EXE：**NOT BUILT**；Windows PowerShell/PE DLL/EXE/安装/真实DeepSeek：**NOT TESTED**。构建工具已解析下载win_amd64 wheel，原生脚本仍未执行；固定profile和build-dependencies记录保证流程可复现，不承诺不同Python补丁/时间戳下EXE字节完全相同。无伪造EXE/SHA。用户源码可用原3.12 venv运行；build wrapper从干净源/独立固定工具构建，不含真实Key/用户资料。
 
-源码ZIP使用安全packager真实构建/验manifest及逐文件SHA256；最终产物路径、字节数、SHA256和对应快照提交将在完成门禁后追加。源码ZIP不是EXE，不加入Git。
+真实源码产物（不是EXE，不加入Git）：
+
+| 项目 | 实测 |
+|---|---|
+| 路径 | `/workspace/artifacts/companion-complete-source.zip` |
+| 大小 | **88,849,334字节** |
+| SHA256 | `040efef829b481e9f3b08ecfe9c180e52a810b76184fff6d9cd0884c9324996b` |
+| 代码/验证文档快照 | `9347bd07c0a41854c471898c6266ffdd3d4124db`；最终报告提交仅增加本产物记录，运行代码一致 |
+| 实际验证 | 886个公开源文件checksum、凭据检查通过；完整源码重复构建得到相同SHA256 |
+| 外部校验文件 | `/workspace/artifacts/companion-complete-source.zip.sha256` |
+
+命令：`python scripts/package_companion_test.py --output /workspace/artifacts/companion-complete-source.zip`，再 `--verify`；repeat输出另一ZIP并用hashlib.file_digest比较。包内报告为上述快照版本（没有把自己的ZIP hash写回自己造成循环）；此处记录为最终Git报告。GitHub Download ZIP的目录/格式及最终报告更新不同，**不能拿本工具ZIP的SHA去比GitHub ZIP**。网页用户直接按最新开发分支/最终HEAD下载即可，运行源码相同。
 
 已知非阻断旧问题：
 
