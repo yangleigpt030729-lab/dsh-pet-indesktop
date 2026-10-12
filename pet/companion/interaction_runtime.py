@@ -158,3 +158,16 @@ class SpriteInteractionConfig:
 def bind_overlay(overlay):
     overlay.overlay._companion_head_click = lambda sprite, point, press: overlay_head(
         getattr(overlay._instance, 'shell', None), overlay, sprite, point, press)
+
+
+def offer_feeding(shell, target, metadata):
+    if shell is None or not getattr(shell, 'enable_chat', False):
+        return False
+    if not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']:
+        return False
+    current = service(shell)
+    proactive = getattr(shell, 'companion_service', None)
+    if proactive:
+        proactive.cancel()
+    current.offer_feeding(target, metadata)
+    return True

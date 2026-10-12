@@ -524,6 +524,7 @@ class PetInstance:
         win.on_open_modern_settings = self._slot_wrap(self.open_modern_settings)
         from .companion.interaction_runtime import legacy_head
         win.on_companion_head_click = lambda point, press: legacy_head(self.shell, win, point, press)
+        win.companion_shell = self.shell
         # 桌宠隐藏时的气泡改道面（DSH 联动等非交互反馈气泡 → 灵动岛，见
         # window_alerts.redirect_hidden_bubble）；岛对话不可用时注入方返回 False。
         win.hidden_bubble_redirect = self.shell._island_feedback_bubble

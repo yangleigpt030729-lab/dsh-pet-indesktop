@@ -1211,9 +1211,17 @@ class OverlayShell(QObject):
         """投喂控制器只认主 sprite；overlay/主 sprite 更换后必须重挂，
         否则投喂命中判定仍打在旧 sprite 的几何上（4.2b 主实例提升同理）。"""
         from .sprite_feeding import SpriteFeedingController
+        old = getattr(self, '_feeding', None)
+        if old is not None:
+            old.close()
         self._feeding = SpriteFeedingController(
             self.overlay, self.sprite, self._config, self.behavior)
         self._feeding._bubble_cb = self._say_feeding_bubble
+        from .companion.interaction_runtime import offer_feeding, Target
+        self._feeding.ai_feedback = lambda sprite, metadata: offer_feeding(
+            getattr(self._instance, 'shell', None), Target(self, sprite), metadata)
+        self._feeding.target_feedback = lambda sprite, f, d, b, stats: self._show_bubble_text_for(
+            sprite, f'啊呜～吃掉 {f} 个文件、{d} 个文件夹，原文件保持不动。', 3200)
         # 解读询问接缝由壳持有：重建控制器时回填，否则主宠提升/屏迁移之后
         # 拖文件解读静默失效。
         self._feeding.interpret_offer = getattr(self, "_file_interpret_offer", None)

@@ -57,12 +57,51 @@ class InteractionService(QObject):
         self.timer.setSingleShot(True)
         self.timer.setInterval(25000)
         self.timer.timeout.connect(lambda: self._error(None, ''))
+        self.feed_timer = QTimer(self)
+        self.feed_timer.setSingleShot(True)
+        self.feed_timer.timeout.connect(self._flush_feeding)
+        self.pending_feeds = {}
         self._manual = self.cancel
         ChatService._global_started_listeners.append(self._manual)
 
     @property
     def busy(self):
-        return bool(self.jobs or self.active or self.chat.busy)
+        return bool(self.jobs or self.active or self.chat.busy or self.pending_feeds)
+
+    def offer_feeding(self, target, metadata):
+        if self.closed or not target.valid() or not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']:
+            return
+        meta = safe_metadata(metadata)
+        old = self.pending_feeds.get(target.key)
+        if old and old['identity'] == target.identity():
+            previous = old['metadata']
+            meta = safe_metadata({
+                'files': meta['files']+previous['files'], 'folders': meta['folders']+previous['folders'],
+                'categories': {k: meta['categories'].get(k, 0)+previous['categories'].get(k, 0)
+                               for k in CATEGORIES}, 'size_bucket': 'unknown'})
+        if target.key not in self.pending_feeds and len(self.pending_feeds) >= 32:
+            return
+        self.pending_feeds[target.key] = dict(target=target, metadata=meta, identity=target.identity(), expires=self.clock()+30)
+        self.feed_timer.start(750)
+
+    def _flush_feeding(self):
+        now = self.clock()
+        for key, entry in list(self.pending_feeds.items()):
+            target = entry['target']
+            if (not target.valid() or target.identity() != entry['identity'] or now >= entry['expires']
+                    or not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']):
+                self.pending_feeds.pop(key, None)
+                continue
+            if self.jobs or self.active or self.chat.busy or target.manual_busy() or now < self.cooldowns.get(('feeding', key), 0):
+                continue
+            self.pending_feeds.pop(key, None)
+            # Other targets awaiting their turn must not block this request.
+            remaining, self.pending_feeds = self.pending_feeds, {}
+            self.request('feeding', target, entry['metadata'])
+            self.pending_feeds = remaining
+            break
+        if self.pending_feeds:
+            self.feed_timer.start(1000)
 
     def _submit(self, action, callback):
         if self.closed:
@@ -175,6 +214,11 @@ class InteractionService(QObject):
             return
         choices = (['被你摸到啦，鱼鳍都开心地翘起来了。', '轻轻摸一下，本鱼的心情亮晶晶。', '谢谢你的温柔，本鱼在这里陪你。']
                    if self.active['kind'] == 'head' else ['啊呜，这份数字点心收到了！文件好好地留在原地。', '谢谢投喂，本鱼嚼嚼数字零食，原文件一口也没动。'])
+        if self.active['kind'] == 'feeding':
+            categories = self.active['metadata']['categories']
+            names = {'python': '括号点心', 'image': '彩色糖果', 'audio': '节拍零食', 'archive': '硬面包', 'folder': '整盒便当'}
+            flavor = next((name for key, name in names.items() if categories.get(key)), '数字零食')
+            choices = [f'光凭类型就想到{flavor}，啊呜～原文件一口也没动。', f'谢谢这一份{flavor}，本鱼只吃想象，文件保持原样。']
         choices = [t for t in choices if text_key(t) not in self.recent] or choices
         text = random.choice(choices)
         self._present(('合成测试：' if self.fake else '')+text)
@@ -191,6 +235,8 @@ class InteractionService(QObject):
         self.timer.stop()
         self.chat.stop()
         self.active = None
+        self.feed_timer.stop()
+        self.pending_feeds.clear()
 
     def close(self):
         if self.closed:

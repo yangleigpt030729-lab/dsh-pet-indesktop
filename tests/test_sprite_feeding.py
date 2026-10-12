@@ -5,6 +5,7 @@
 吃动画经 play_once 一次性播放、气泡接缝静默、dragMove 同判定。
 """
 from __future__ import annotations
+from tests.test_companion_chat import wait
 
 import json
 import os
@@ -80,6 +81,9 @@ def test_drop_records_stats_and_plays_eat_anim(tmp_path):
         event = _drop_event(QPointF(shell.sprite.rect().center()), [str(f1)])
         result = ctrl.handle_drop(event)
         assert event.isAccepted()
+        assert result['pending']
+        wait(QApplication.instance(), lambda: not ctrl.feed_busy)
+        result = ctrl.last_result
         assert result["files"] == 1 and result["bytes"] == 5
         # 统计文件同格式落盘
         stats = json.loads((tmp_path / "file_eaten_stats.json").read_text(encoding="utf-8"))
@@ -118,6 +122,7 @@ def test_feeding_bubble_text_format(tmp_path):
         ctrl = shell._feeding
         event = _drop_event(QPointF(shell.sprite.rect().center()), [str(f1)])
         ctrl.handle_drop(event)
+        wait(QApplication.instance(), lambda: not ctrl.feed_busy)
         assert len(said) == 1
         text, kw = said[0]
         assert "啊呜～吃掉 1 个文件" in text
@@ -138,6 +143,7 @@ def test_eat_paths_calls_interpret_offer(tmp_path):
         f1.write_text("x", encoding="utf-8")
         event = _drop_event(QPointF(shell.sprite.rect().center()), [str(f1)])
         ctrl.handle_drop(event)
+        wait(QApplication.instance(), lambda: not ctrl.feed_busy)
         assert len(offered) == 1, "投喂后必须把原始路径交给解读控制器"
         assert [Path(p) for p in offered[0]] == [f1]
     finally:
@@ -176,6 +182,7 @@ def test_shell_file_interpret_offer_seam_survives_rebind(tmp_path):
         f1.write_text("x", encoding="utf-8")
         event = _drop_event(QPointF(shell.sprite.rect().center()), [str(f1)])
         shell._feeding.handle_drop(event)
+        wait(QApplication.instance(), lambda: not shell._feeding.feed_busy)
         assert len(offered) == 1
         assert [Path(p) for p in offered[0]] == [f1]
     finally:

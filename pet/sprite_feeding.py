@@ -55,6 +55,36 @@ class SpriteFeedingController:
         # 解读询问接缝（壳接线，口径同旧 file_eater.eat_paths:183-186）：
         # 未注入（无聊天变体/未接线）时为 None，静默降级。
         self.interpret_offer = None
+        self.ai_feedback = None
+        self.target_feedback = None
+        self.last_result = None
+        from .companion.feeding_worker import FeedWorker
+        self._feed_worker = FeedWorker(overlay, self._feed_complete, self.stats_path)
+
+    @property
+    def feed_busy(self):
+        return bool(self._feed_worker.pending)
+
+    def close(self):
+        self._feed_worker.cancel.set()
+        self._feed_worker.deleteLater()
+
+    def _feed_complete(self, result, paths, context):
+        sprite_ref, library_id = context
+        sprite = sprite_ref()
+        self.last_result = result
+        if sprite is None or sprite not in self._overlay.sprites:
+            return
+        if id(sprite.library) != library_id:
+            return
+        if sprite is self._sprite:
+            self._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
+        elif callable(self.target_feedback):
+            self.target_feedback(sprite, result['files'], result['folders'], result['bytes'], result['stats'])
+        if callable(self.interpret_offer):
+            self.interpret_offer(paths)
+        if callable(self.ai_feedback) and result['files']+result['folders']:
+            self.ai_feedback(sprite, result['metadata'])
 
     # ---------------------------------------------------------------- 拖放判定
     def accepts(self, event) -> bool:
@@ -69,12 +99,18 @@ class SpriteFeedingController:
 
     def handle_drop(self, event) -> dict | None:
         paths = _local_paths(event.mimeData())
-        if not paths or self._overlay.sprite_at(event.position()) is None:
+        target = self._overlay.sprite_at(event.position())
+        if not paths or target is None:
             event.ignore()
             return None
-        result = self.eat_paths(paths)
+        import weakref
+        context = (weakref.ref(target), id(target.library))
+        if not self._feed_worker.submit(paths, context):
+            event.ignore()
+            return None
+        self._play_eating_animation(target)
         event.acceptProposedAction()
-        return result
+        return {'pending': True}
 
     # ---------------------------------------------------------------- 反馈
     def eat_paths(self, paths) -> dict:
@@ -115,11 +151,12 @@ class SpriteFeedingController:
         _save_stats(self.stats_path, stats)
         return stats
 
-    def _play_eating_animation(self) -> None:
-        cats = self._behavior._categories(self._sprite.library)
+    def _play_eating_animation(self, target=None) -> None:
+        target = self._sprite if target is None else target
+        cats = self._behavior._categories(target.library)
         name = _pick_eating_animation(SimpleNamespace(acts=list(cats["acts"])))
         if name:
-            self._behavior.play_once(self._sprite, name)
+            self._behavior.play_once(target, name)
 
     def _show_feedback(self, files: int, folders: int, total_bytes: int,
                        stats: dict) -> None:

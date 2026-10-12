@@ -90,6 +90,9 @@ class WindowFeatureGateMixin:
         if self._file_eater is None:
             from .file_eater import FileEaterDropHandler
             self._file_eater = FileEaterDropHandler(self)
+            from .companion.interaction_runtime import offer_feeding, Target
+            self._file_eater.ai_feedback = lambda metadata: offer_feeding(
+                getattr(self, 'companion_shell', None), Target(self), metadata)
         return self._file_eater
 
     # ------------------------------------------------------------ 文件解读

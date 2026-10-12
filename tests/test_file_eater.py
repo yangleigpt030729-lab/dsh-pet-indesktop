@@ -137,6 +137,8 @@ def test_drag_and_drop_events_are_accepted_and_fed(tmp_path):
     assert handler.eventFilter(pet, drop) is True
     assert drop.isAccepted()
     assert pet.anim_requests == ["吃Token"]
+    from tests.test_companion_chat import wait
+    wait(QApplication.instance(), lambda: not handler.feed_busy)
     assert (tmp_path / "file_eaten_stats.json").is_file()
 
 

@@ -31,6 +31,7 @@ def _default_stats() -> dict:
         "folder_count": 0,
         "item_count": 0,
         "total_bytes": 0,
+        "size_partial_count": 0,
         "history": [],
     }
 
@@ -43,7 +44,7 @@ def _load_stats(path: Path) -> dict:
     if not isinstance(raw, dict):
         return _default_stats()
     stats = _default_stats()
-    for key in ("feed_count", "file_count", "folder_count", "item_count", "total_bytes"):
+    for key in ("feed_count", "file_count", "folder_count", "item_count", "total_bytes", "size_partial_count"):
         try:
             stats[key] = int(raw.get(key, 0))
         except (TypeError, ValueError):
@@ -136,6 +137,27 @@ class FileEaterDropHandler(QObject):
         self.stats_path = Path(cfg_dir) / STATS_FILE_NAME if cfg_dir else None
         pet.setAcceptDrops(True)
         pet.installEventFilter(self)
+        from .companion.feeding_worker import FeedWorker
+        self._feed_worker = FeedWorker(pet, self._feed_complete, self.stats_path)
+        self.ai_feedback = None
+
+    @property
+    def feed_busy(self):
+        return bool(self._feed_worker.pending)
+
+    def queue_paths(self, paths):
+        if not self._feed_worker.submit(paths):
+            return False
+        self._play_eating_animation()
+        return True
+
+    def _feed_complete(self, result, paths, _context):
+        self._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
+        offer = getattr(self, 'interpret_offer', None)
+        if callable(offer):
+            offer(paths)
+        if callable(self.ai_feedback) and result['files']+result['folders']:
+            self.ai_feedback(result['metadata'])
 
     # ------------------------------------------------------------ 事件
     def _local_paths(self, mime) -> list[str]:
@@ -159,8 +181,10 @@ class FileEaterDropHandler(QObject):
         if event_type == QEvent.Type.Drop:
             paths = self._local_paths(event.mimeData())
             if paths:
-                self.eat_paths(paths)
-                event.acceptProposedAction()
+                if self.queue_paths(paths):
+                    event.acceptProposedAction()
+                    return True
+                event.ignore()
                 return True
             return False
         return False
@@ -234,10 +258,11 @@ class FileEaterDropHandler(QObject):
             batch = f"{folders} 个文件夹"
         else:
             batch = "空气"
+        estimate = '至少' if stats.get('size_partial_count') else ''
         text = (
             f"啊呜～吃掉 {batch}（{format_bytes(total_bytes)}），"
             f"累计吃掉 {stats.get('file_count', 0)} 个文件、"
             f"{stats.get('folder_count', 0)} 个文件夹，"
-            f"共 {format_bytes(stats.get('total_bytes', 0))}！"
+            f"共 {estimate}{format_bytes(stats.get('total_bytes', 0))}！"
         )
         show(text, subtitle="放心，只是做个样子，文件没有删除或移动哦")

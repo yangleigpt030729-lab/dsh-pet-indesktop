@@ -27,7 +27,10 @@ def install_fake_chat():
             if '"interaction": "head"' in text:
                 yield '合成测试：被你轻轻摸一下，本鱼的心情亮晶晶。'
             elif '"interaction": "feeding"' in text:
-                yield '合成测试：收到这份数字点心啦，原文件好好地留在原地。'
+                flavor = ('括号点心' if '"python":' in text else '彩色糖果' if '"image":' in text
+                          else '节拍零食' if '"audio":' in text else '硬面包' if '"archive":' in text
+                          else '整盒便当' if '"folder":' in text else '数字零食')
+                yield f'合成测试：光凭类型就想到{flavor}，啊呜～原文件保持原样。'
             elif '"topic": "drink"' in text:
                 yield '合成测试：本鱼提醒你喝点水。'
             elif '"topic": "break"' in text:
