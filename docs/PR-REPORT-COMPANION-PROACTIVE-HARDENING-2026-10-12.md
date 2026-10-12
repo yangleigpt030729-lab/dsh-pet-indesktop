@@ -90,3 +90,7 @@ Win64/cp311依赖探针使用 `pip download --only-binary=:all: --platform win_a
 仅提交本轮P2-B收尾和源码验收准备；Windows/真实DeepSeek/PowerShell/EXE仍NOT TESTED。实现保留在独立开发分支，不合并main，等待用户实机验收。
 
 本轮基线6052b15，共20个文件；本报告自身新增 92 行、删除0行，其他增删见逐文件表。
+
+## 2026-10-13 Windows 现场反馈及第二轮修补
+
+保留以上原交付记录。用户已用Win10/Python3.12成功启动GUI、打开灵动岛设置，并在临时Fake注入后看到主动气泡；同时报告右键设置和原默认Fake失败。正式修补、红绿证据和重新执行的测试见[本轮报告](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)，旧测试数字不作为本轮结果。

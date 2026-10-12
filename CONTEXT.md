@@ -130,3 +130,16 @@ crash timing survives midnight cleanup. Recent model prompts contain only fixed
 semantic labels; prior utterance wording stays local even when memory consent
 was previously enabled. Windows acceptance uses an isolated source test directory
 and does not ship credentials or pretend a Linux build is a Windows EXE.
+
+Windows user evidence (2026-10-13): Win10 22H2 x64 / Python 3.12 x64 with
+the companion constraints starts the GUI and renders proactive settings; the
+island settings entry works. The original overlay right-click settings silently
+returned when process isolation was disabled; it now reuses the same primary
+PetInstance dialog and supplies per-slot in-process fallbacks. Settings children
+carry a custom Config base and, only for Fake acceptance, an explicit Fake flag.
+Deferred presentation timers are bound to the dialog lifetime. The default
+acceptance launcher explicitly injects separate Fake Providers into manual and
+proactive services, preserving the live credential checks. A temporary user
+injection already displayed a native Windows synthetic bubble; formal fixes,
+complete Windows acceptance and real DeepSeek remain pending. See
+docs/PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md.

@@ -1,9 +1,25 @@
 # Windows 10 22H2 x64：P2-B 源码运行与实机验收
 
 本指南面向 `feature/win10-companion-memory`，不是 main，也不是上游旧 Releases。
-**当前 Windows 实机、真实 DeepSeek、Windows PowerShell 脚本执行、Windows EXE 均为 NOT TESTED。**
+用户已在 **Windows 10 22H2 x64 / Python 3.12 x64** 实测 GUI 启动、桌宠可见、主动AI设置页面、灵动岛设置入口，以及临时显式注入 Fake 后的“合成测试”气泡。原版右键设置失败、默认 Fake 不触发也已记录。本轮正式修补的 Windows 复验、完整验收、真实 DeepSeek 联网、PowerShell 准备脚本及新 EXE 仍为 **NOT TESTED**。
 本轮提供可复现源码测试包及固定依赖环境，不制作 P5 正式发行版。
-关联：[本轮报告](PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md)、[上轮实现](PR-REPORT-COMPANION-PROACTIVE-2026-10-12.md)。
+关联：[实机问题修补报告](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)、[上一轮加固](PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md)。
+
+## 已有 Python 3.12 环境：最短更新与复测
+
+1. 托盘“全部退出”，下载开发分支的**新 ZIP**，解压到新目录，例如 `D:\Code\FishRetest`；不要覆盖合并旧源码，不要复制临时修补或 `scripts\run_companion_acceptance.py.bak`。保留原 `D:\Code\FishVenv312` 和隔离数据 `D:\Code\FishAcceptance`，无需 Git、GitHub Desktop 或 EXE。
+2. PowerShell 进入新解压根目录（有 `pet`、`assets`、`scripts` 的那一层），使用已经成功的解释器：
+
+```powershell
+Set-Location 'D:\Code\FishRetest\实际解压后的项目目录'
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -c "import sys,PySide6; print(sys.version,PySide6.__version__)"
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --data-dir 'D:\Code\FishAcceptance'
+```
+
+3. 右键“桌宠设置”应打开与灵动岛相同的设置窗口；重复点击只前置已有窗口，关闭后能重新打开。生成合成气泡后，控制台出现 `FAKE: synthetic proactive bubble displayed`。首次候选在约1.5秒尝试，失败条件则等待30秒调度；全屏、隐藏、聊天/重要提示、最近成功展示或离开电脑仍会延后，不能承诺固定时间必发。
+4. 原测试数据可能已记下此前成功气泡，重启仍受30分钟间隔和每天10条限制。要复验首次展示，用新的**外部**目录，例如 `--data-dir 'D:\Code\FishAcceptanceRetest'`，不要删 SQLite 或修改系统时钟。测试资料仍须用合成信息，无需提供 API Key。
+5. 分别设置 `$env:PET_RENDER_TOPOLOGY='legacy'` 和 `'overlay'`，每次全部退出后换独立目录；复验右键设置、灵动岛设置、关窗重开、多宠子宠对应角色、默认 Fake 气泡、手动聊天优先、退出。首次气泡不是完整Windows验收。
 
 ## 1. 用 GitHub 网页下载，不用 GitHub Desktop
 
@@ -19,20 +35,20 @@
 在解压目录空白处“在终端/PowerShell中打开”，或执行 `Set-Location 'C:\DshPetTest\实际解压后的项目文件夹'`。
 
 ```powershell
-py -3.11 --version
-py -3.11 -c "import struct; print(struct.calcsize('P')*8)"
+py -3.11 -X utf8 --version
+py -3.11 -X utf8 -c "import struct; print(struct.calcsize('P')*8)"
 # 上一条应为64
-py -3.11 -m venv .venv-win10
-.\.venv-win10\Scripts\python.exe -m pip install -r requirements.txt -c packaging\constraints-win10-companion.txt
-.\.venv-win10\Scripts\python.exe -m pip check
-.\.venv-win10\Scripts\python.exe -c "import PySide6;from PySide6.QtCore import qVersion;print(PySide6.__version__,qVersion())"
+py -3.11 -X utf8 -m venv .venv-win10
+.\.venv-win10\Scripts\python.exe -X utf8 -m pip install -r requirements.txt -c packaging\constraints-win10-companion.txt
+.\.venv-win10\Scripts\python.exe -X utf8 -m pip check
+.\.venv-win10\Scripts\python.exe -X utf8 -c "import PySide6;from PySide6.QtCore import qVersion;print(PySide6.__version__,qVersion())"
 ```
 
-末条目标为 **6.8.3 / 6.8.3**。测试配置选择Qt6.8版本线以覆盖Win10，而不是任意升级最新Qt；锁定文件不改变原requirements的运行声明。CI使用Python3.11；本次云端Python3.12同时检验Qt6.12与Qt6.8.3，仍不能代替Windows3.11实跑。
+末条目标为 **6.8.3 / 6.8.3**。测试配置选择Qt6.8版本线以覆盖Win10，而不是任意升级最新Qt；锁定文件不改变原requirements的运行声明。CI使用Python3.11；用户已用Python3.12 x64及此约束成功安装、启动GUI、显示临时修补后的Fake气泡。可继续使用已有3.12环境；新建3.12环境时将 `py -3.11` 换成 `py -3.12`。这只证明已报告的基础流程，不等于完整Python3.12/Win10验收，也不推广到其他平台或任意Qt版本。云端Python3.12的Qt6.12/6.8.3 offscreen结果另行记录。
 
 主要依赖：PySide6/shiboken6（GUI），imageio-ffmpeg（自带ffmpeg轮子，无需另装系统ffmpeg）、Pillow、keyring/pywin32-ctypes（系统凭据）、certifi、tzdata、lunar-python；原版能力还用edge-tts、psutil、pycaw/comtypes及WinRT媒体投影包。安装edge-tts不代表主动聊天会调用语音。SQLite是Python标准库，无需安装数据库服务。pytest、Ruff用于自动化测试。完整版本及传递依赖见 `packaging/constraints-win10-companion.txt`。
 
-上述直接命令不要求激活venv，也不要求修改PowerShell全局执行策略。可选的 `scripts\prepare_windows_companion.ps1 -RunFocusedTests` 等价准备环境、检查退出码；下载脚本受系统执行策略限制时，使用直接命令即可，不要为此关闭TLS校验或放宽版本约束。
+所有安装命令显式加 `-X utf8`，避免中文Windows的GBK requirements解码问题；用户已验证此办法有效。上述直接命令不要求激活venv，也不要求修改PowerShell全局执行策略。可选的 `scripts\prepare_windows_companion.ps1 -PythonVersion 3.12 -RunFocusedTests` 准备3.12环境；默认仍3.11。脚本执行本轮未在Windows验证，下载脚本受执行策略限制时使用直接命令即可。
 
 ## 3. 先进行独立 Fake 验收（无真实Key）
 
@@ -40,14 +56,14 @@ py -3.11 -m venv .venv-win10
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 $env:PYTHONUTF8 = '1'
 # 新测试目录在源码目录以外，不使用原版用户数据或凭据
-.\.venv-win10\Scripts\python.exe scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptance
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptance
 ```
 
 默认 **FAKE**：所有ChatService使用合成Provider，不读取/写入系统密钥；urllib联网禁用，设置中的连接测试明确标为模拟。初次测试Provider有独立凭据ref。文字含“合成测试”，用于验证窗口、线程、记忆及频控，**不证明真实模型动态生成**。这只改变独立测试进程/目录；不改变产品默认入口或原版设置。
 
 如果C盘根目录不可写，可用 `--data-dir "$env:LOCALAPPDATA\DshPetCompanionAcceptance"`，但测试数据仍须放在源码目录外。
 
-测试配置与SQLite在 `C:\DshPetAcceptance\dsh-pet-standalone\`。原源码入口通常使用 `%APPDATA%\dsh-pet-standalone\`，原打包变体还可能使用 `%APPDATA%\dsh-pet-standalone-webm-chat\`；本验收启动器会拒绝把测试目录设为源码内部或原版默认目录。它把测试设置窗口保留在本进程以确保编辑同一份独立Config，避免独立设置进程误写生产目录。
+测试配置与SQLite在 `C:\DshPetAcceptance\dsh-pet-standalone\`。原源码入口通常使用 `%APPDATA%\dsh-pet-standalone\`，原打包变体还可能使用 `%APPDATA%\dsh-pet-standalone-webm-chat\`；验收启动器拒绝源码内部或原版默认目录，默认保留进程内设置。本轮两种右键拓扑都复用ModernSettingsDialog；多宠子设置按slot身份落盘。独立设置进程现在明确携带 `--settings-base` 和角色 `--instance`，Fake验收子进程另携带 `--settings-fake`；即使本机开启进程隔离，也继续使用隔离配置和Fake，不借用生产目录或系统密钥。
 
 - 等待首次合适时机的合成气泡；启用后仍尊重隐藏、全屏、重要提示、聊天窗和30分钟间隔。
 - 右键设置 → AI 与对话：检查主动AI开关、每天上限10、最短30分钟、日程增强“尚未实现”。
@@ -59,10 +75,10 @@ $env:PYTHONUTF8 = '1'
 
 ```powershell
 $env:PET_RENDER_TOPOLOGY = 'legacy'
-.\.venv-win10\Scripts\python.exe scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceLegacy
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceLegacy
 # 关闭之后，测试overlay
 $env:PET_RENDER_TOPOLOGY = 'overlay'
-.\.venv-win10\Scripts\python.exe scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceOverlay
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceOverlay
 ```
 
 Overlay本轮选择主宠；主宠被单独隐藏时暂缓，不能在隐藏主宠的位置显示气泡。多宠不能广播同一条普通主动消息。测试完可 `Remove-Item Env:PET_RENDER_TOPOLOGY` 恢复原默认选择。
@@ -72,7 +88,7 @@ Overlay本轮选择主宠；主宠被单独隐藏时暂缓，不能在隐藏主�
 Fake通过后，先全部退出；选新独立目录，显式启用live：
 
 ```powershell
-.\.venv-win10\Scripts\python.exe scripts\run_companion_acceptance.py --live --data-dir C:\DshPetAcceptanceLive
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --live --data-dir C:\DshPetAcceptanceLive
 ```
 
 首次新目录主动开关仍默认关闭。设置 → AI与对话：填实际Provider地址、账户可用模型和Key，使用原有本地设置/系统凭据入口保存，先测试连接和手动聊天。**Key只在本机填写，不写源码、约束文件、命令行、截图或ZIP，不发给开发助手。** 新测试目录使用独立的 `provider/acceptance-…` 引用，不覆盖原版Provider的凭据ref。
@@ -81,7 +97,7 @@ Fake通过后，先全部退出；选新独立目录，显式启用live：
 
 原系统代理由Provider正常使用；不要用关闭SSL校验掩盖代理证书问题。真实网络、401/429和费用以用户账户记录验证；云端仅模拟。默认每天最多20次模型尝试、每次96输出token预算，**输入token也计费，次数上限不是人民币费用上限**。
 
-标准产品入口也可直接运行 `.\.venv-win10\Scripts\python.exe -m pet`；它使用正常用户目录，故本轮优先用上述隔离启动器验收。无需打包EXE即可运行原版动画、设置、聊天与本轮功能。
+标准产品入口也可直接运行 `.\.venv-win10\Scripts\python.exe -X utf8 -m pet`；它使用正常用户目录，故本轮优先用上述隔离启动器验收。无需打包EXE即可运行原版动画、设置、聊天与本轮功能。
 
 ## 5. Windows 自动化复验
 
@@ -89,13 +105,13 @@ Fake通过后，先全部退出；选新独立目录，显式启用live：
 
 ```powershell
 $env:QT_QPA_PLATFORM = 'offscreen'
-.\.venv-win10\Scripts\python.exe -m pytest -q tests\test_companion_proactive_hardening.py tests\test_companion_proactive_state.py tests\test_companion_proactive_service.py tests\test_companion_proactive_failures.py tests\test_companion_proactive_network.py tests\test_companion_proactive_ui.py tests\test_companion_proactive_schedule.py tests\test_companion_acceptance_package.py tests\test_companion_acceptance_launcher.py tests\test_companion_chat.py
-.\.venv-win10\Scripts\python.exe -m pytest -q --ignore=tests/test_webm_reader_lifecycle.py --ignore=tests/test_webm_clip_lifecycle.py --ignore=tests/test_webm_first_frame_lock.py --ignore=tests/test_low_priority_warm_interaction_yield.py
-.\.venv-win10\Scripts\python.exe -m pytest -q tests\test_webm_reader_lifecycle.py tests\test_webm_clip_lifecycle.py tests\test_webm_first_frame_lock.py
-.\.venv-win10\Scripts\python.exe -m pytest -q tests\test_low_priority_warm_interaction_yield.py
-.\.venv-win10\Scripts\python.exe -m pytest -q tests\test_frameseq_prefetch_watchdog.py tests\test_frameseq_clip.py
-.\.venv-win10\Scripts\python.exe -m ruff check pet tests
-.\.venv-win10\Scripts\python.exe -m compileall -q pet packaging scripts
+.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_companion_settings_entry.py tests\test_companion_proactive_hardening.py tests\test_companion_proactive_state.py tests\test_companion_proactive_service.py tests\test_companion_proactive_failures.py tests\test_companion_proactive_network.py tests\test_companion_proactive_ui.py tests\test_companion_proactive_schedule.py tests\test_companion_acceptance_package.py tests\test_companion_acceptance_launcher.py tests\test_companion_chat.py
+.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q --ignore=tests/test_webm_reader_lifecycle.py --ignore=tests/test_webm_clip_lifecycle.py --ignore=tests/test_webm_first_frame_lock.py --ignore=tests/test_low_priority_warm_interaction_yield.py
+.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_webm_reader_lifecycle.py tests\test_webm_clip_lifecycle.py tests\test_webm_first_frame_lock.py
+.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_low_priority_warm_interaction_yield.py
+.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_frameseq_prefetch_watchdog.py tests\test_frameseq_clip.py
+.\.venv-win10\Scripts\python.exe -X utf8 -m ruff check pet tests
+.\.venv-win10\Scripts\python.exe -X utf8 -m compileall -q pet packaging scripts
 Remove-Item Env:QT_QPA_PLATFORM
 ```
 
@@ -106,8 +122,8 @@ Remove-Item Env:QT_QPA_PLATFORM
 本轮构建的是 **源码测试ZIP**，不是Linux交叉编译的Windows EXE，不冒充正式发行。首次取GitHub ZIP后、输入任何真实凭据前，在外部输出目录执行：
 
 ```powershell
-.\.venv-win10\Scripts\python.exe scripts\package_companion_test.py --output C:\DshPetTestArtifacts\companion-win10-source.zip
-.\.venv-win10\Scripts\python.exe scripts\package_companion_test.py --verify C:\DshPetTestArtifacts\companion-win10-source.zip
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\package_companion_test.py --output C:\DshPetTestArtifacts\companion-win10-source.zip
+.\.venv-win10\Scripts\python.exe -X utf8 scripts\package_companion_test.py --verify C:\DshPetTestArtifacts\companion-win10-source.zip
 Get-FileHash C:\DshPetTestArtifacts\companion-win10-source.zip -Algorithm SHA256
 ```
 

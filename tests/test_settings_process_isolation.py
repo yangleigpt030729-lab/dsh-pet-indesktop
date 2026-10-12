@@ -354,7 +354,7 @@ def test_launch_settings_process_uses_source_command(tmp_path, monkeypatch):
     assert shell._launch_settings_process() is True
     program, arguments, workdir = calls[0]
     assert program == sys.executable
-    assert arguments == ["-m", "pet", "--settings"]
+    assert arguments == ["-m", "pet", "--settings", "--settings-base", str(tmp_path.resolve())]
     assert Path(workdir) == Path(app_mod.__file__).resolve().parent.parent
 
 

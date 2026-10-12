@@ -827,10 +827,10 @@ class PetInstance:
         覆盖：弹窗仍显示时重试等待。重试 60 次（约 3.6 秒）后放弃，
         防止弹窗长期不消失时无限空转。
         """
-        if attempt > 60:
+        if attempt > 60 or not shiboken6.isValid(dialog):
             return
         if QApplication.activePopupWidget() is not None:
-            QTimer.singleShot(60, lambda: self._present_dialog(dialog, before_present, attempt + 1))
+            QTimer.singleShot(60, dialog, lambda: self._present_dialog(dialog, before_present, attempt + 1))
             return
         if before_present is not None:
             before_present()
@@ -878,18 +878,22 @@ class PetInstance:
 
     def _update_bubble_suppression_for_settings(self) -> None:
         """任一设置窗口打开/独立设置进程存活时暂停桌宠气泡，避免气泡盖住设置界面。"""
-        if getattr(self, "win", None) is None:
-            return
         shell = getattr(self, "shell", None)
+        overlay = getattr(shell, '_overlay_shell', None)
+        target = getattr(self, 'win', None) or overlay
+        if target is None or not shiboken6.isValid(target):
+            return
         # 独立设置进程在跑时主进程没有对话框对象，只能看 shell 上的存活标记：
         # 锁文件存在期由 AppShell 维护（watcher 立即 + 3s 轮询兜底清除）。
         external_settings = bool(getattr(shell, "_settings_child_active", False)) if shell is not None else False
-        any_open = (
-            getattr(self, "modern_settings_dialog", None) is not None
-            or getattr(self, "chat_settings_dialog", None) is not None
-            or external_settings
-        )
-        self.win.set_bubble_suppressed(any_open)
+        owners = [self]
+        if overlay is not None:
+            owners += list(getattr(shell, '_instances', ()))
+            owners += list(getattr(overlay, '_settings_owners', {}).values())
+        any_open = external_settings or any(
+            getattr(owner, 'modern_settings_dialog', None) is not None
+            or getattr(owner, 'chat_settings_dialog', None) is not None for owner in owners)
+        target.set_bubble_suppressed(any_open)
 
     def open_modern_settings(self, initial_page: str | None = None) -> None:
         # 默认路径：设置页拉到独立进程（关窗即进程退出，OS 回收首开留下的
@@ -897,6 +901,10 @@ class PetInstance:
         # 下面的进程内路径——功能绝不丢。
         if self._try_open_settings_process(initial_page):
             return
+        self._open_modern_settings_in_process(initial_page)
+
+    def _open_modern_settings_in_process(self, initial_page: str | None = None) -> None:
+        """Shared fallback for legacy, island and per-sprite overlay identities."""
         from .modern_settings_dialog import ModernSettingsDialog
         if self.modern_settings_dialog is None:
             self._dock_icon_before_settings = bool(self.config.get("show_dock_icon", True))
@@ -907,6 +915,7 @@ class PetInstance:
                 initial_page=initial_page,
             )
             dialog.finished.connect(self._modern_settings_finished)
+            dialog.destroyed.connect(lambda: self._modern_settings_destroyed(dialog))
             self.modern_settings_dialog = dialog
         elif initial_page:
             selector = getattr(self.modern_settings_dialog, "select_page", None)
@@ -918,6 +927,13 @@ class PetInstance:
             self.modern_settings_dialog,
             before_present=self.modern_settings_dialog.move_away_from_pet,
         )
+
+    def _modern_settings_destroyed(self, dialog) -> None:
+        # Closing a not-yet-presented QDialog may destroy it without finished.
+        # Never clear a newer dialog when an older one is deleted later.
+        if self.modern_settings_dialog is dialog:
+            self.modern_settings_dialog = None
+            self._update_bubble_suppression_for_settings()
 
     def _try_open_settings_process(self, initial_page: str | None = None) -> bool:
         """尝试走独立设置进程；True = 已交给独立进程（不要再开进程内对话框）。"""
@@ -1697,6 +1713,13 @@ class AppShell:
             logging.warning("sys.executable 为空，无法拉起独立设置进程")
             return False
         instance_id = _instance_config_identity(instance)
+        # Custom Config hosts must not resolve the child's production APPDATA.
+        from .config import _default_base
+        base = self.config.dir.parent.resolve()
+        if base != _default_base().resolve():
+            arguments += ["--settings-base", str(base)]
+        if getattr(self, '_companion_acceptance_fake', False):
+            arguments += ["--settings-fake"]
         if page:
             arguments += ["--settings-page", str(page)]
         if instance_id and instance_id != (os.environ.get("DSH_PET_INSTANCE") or "").strip():

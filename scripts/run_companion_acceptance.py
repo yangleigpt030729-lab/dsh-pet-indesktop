@@ -15,6 +15,9 @@ def install_fake_chat():
     from pet.chat import providers
     from pet.chat.models import SecretStore
     from pet.chat.service import ChatService
+    from pet.companion.proactive_service import ProactiveService
+    if getattr(ChatService.__init__, '_acceptance_fake', False):
+        return
     class FakeProvider:
         def stream(self, messages, config, cancel):
             if cancel.is_set():
@@ -28,8 +31,14 @@ def install_fake_chat():
                 yield '合成测试：今天也慢慢来，本鱼在这里陪你。'
     original = ChatService.__init__
     def initialize(self, provider=None, *args, **kwargs):
-        original(self, provider or FakeProvider(), *args, **kwargs)
+        original(self, provider if isinstance(provider, FakeProvider) else FakeProvider(), *args, **kwargs)
+    initialize._acceptance_fake = True
     ChatService.__init__ = initialize
+    original_proactive = ProactiveService.__init__
+    def initialize_proactive(self, *args, provider=None, **kwargs):
+        # Explicit injection keeps the service's keyless test contract honest.
+        original_proactive(self, *args, provider=FakeProvider(), **kwargs)
+    ProactiveService.__init__ = initialize_proactive
     SecretStore.get = lambda *a: ''
     SecretStore.set = lambda *a: False
     providers.test_connection = lambda *a, **k: (True, 'Fake Provider 可用；真实 DeepSeek 联网 NOT TESTED')
@@ -55,7 +64,8 @@ def configure(data_dir):
         settings.active_provider = provider.provider_id
         config.set_chat_settings(settings)
     # Settings stay in this test process and use this same isolated Config.
-    # The separate product settings process otherwise resolves the normal directory.
+    # Explicit settings children also inherit this base and Fake mode if the
+    # isolation switch is later enabled locally.
     config.set('settings_process_isolation', False)
     return config
 
@@ -79,8 +89,11 @@ def main():
     if not config.save():
         raise OSError('Acceptance configuration could not be saved')
     shell = AppShell(app, config)
+    shell._companion_acceptance_fake = not args.live
     shell.start()
     if not args.live and shell.companion_service is not None:
+        shell.companion_service.delivered.connect(
+            lambda _text: print('FAKE: synthetic proactive bubble displayed', flush=True))
         QTimer.singleShot(1500, shell.companion_service.tick)
     if args.auto_close_seconds:
         QTimer.singleShot(max(1, args.auto_close_seconds)*1000, app.quit)

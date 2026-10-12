@@ -21,6 +21,7 @@ if __name__ == '__main__':
         for n in range(3):
             print(f'LOAD ROUND {n+1}: 4 CPU burners', flush=True)
             command = [sys.executable, '-m', 'pytest', '-q', 'tests/test_companion_proactive_hardening.py', 'tests/test_companion_proactive_service.py', 'tests/test_companion_proactive_network.py', 'tests/test_companion_proactive_ui.py', 'tests/test_companion_proactive_failures.py', 'tests/test_companion_proactive_state.py', 'tests/test_companion_proactive_schedule.py', 'tests/test_companion_recall_intent.py', 'tests/test_companion_chat.py', 'tests/test_chat_service.py']
+            command += ['tests/test_companion_settings_entry.py', 'tests/test_companion_acceptance_launcher.py']
             result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1])
             if result.returncode:
                 sys.exit(result.returncode)

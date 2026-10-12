@@ -2807,6 +2807,8 @@ class OverlayShell(QObject):
 
         退出收口逐步隔离（缺陷 13）：每一步独立 try/except，单步抛错只记日志。
         """
+        from .overlay_settings import close_settings
+        self._run_exit_step('关闭子宠设置', lambda: close_settings(self))
         if not self._started:
             return
         self._started = False
@@ -4099,17 +4101,16 @@ class OverlayShell(QObject):
         return slot_manager.slot_to_instance_id(int(slot))
 
     def open_settings_for(self, sprite=None) -> bool:
-        """按被点 sprite 的 config 身份打开设置页（D13 落点）。
-
-        返回 True = 已交给独立设置进程（与 ``AppShell.open_settings_process``
-        同义）。只认 AppShell 的 opener：拿不到（测试替身）或开关关闭 → False；
-        overlay 拓扑没有 PetWindow 可挂 parent，故不做进程内回退。
-        """
+        """Open ModernSettingsDialog for this sprite, with in-process fallback."""
+        from .overlay_settings import open_in_process, open_primary
+        identity = self.sprite_instance_id(sprite)
+        if open_primary(self, identity):
+            return True
         opener = getattr(getattr(self._instance, "shell", None),
                          "open_settings_process", None)
-        if not callable(opener):
-            return False
-        return bool(opener(_SettingsIdentity(self.sprite_instance_id(sprite))))
+        if callable(opener) and opener(_SettingsIdentity(identity)):
+            return True
+        return open_in_process(self, identity)
 
     def _sprite_visible(self, sprite) -> bool:
         """sprite 当前可见性（M14）；无该字段的鸭式 sprite 视为可见。"""

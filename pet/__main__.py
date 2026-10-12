@@ -85,6 +85,9 @@ def _run_settings(config=None) -> int:
     QApplication + Config + ModernSettingsDialog。**严禁**导入 pet.app——那会连带
     载入素材库/ffmpeg/托盘/灵动岛，独立进程省内存的前提（也省启动时间）就没了。
     """
+    if '--settings-fake' in sys.argv:
+        from scripts.run_companion_acceptance import install_fake_chat
+        install_fake_chat()
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication(sys.argv)
@@ -97,7 +100,11 @@ def _run_settings(config=None) -> int:
         # DSH_PET_INSTANCE 由主进程经环境继承下来：子肥鱼的设置进程编辑的是
         # 它自己的 config-slot-N.json，与主进程同一份文件；多窗场景由主进程
         # 追加 --instance 显式指明。
-        config = Config(instance_id=_settings_instance_id(sys.argv) or None)
+        try:
+            base = sys.argv[sys.argv.index('--settings-base') + 1]
+        except (ValueError, IndexError):
+            base = None
+        config = Config(base=base, instance_id=_settings_instance_id(sys.argv) or None)
     try:
         config.dir.mkdir(parents=True, exist_ok=True)
     except OSError:
