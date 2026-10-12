@@ -1837,6 +1837,7 @@ class ModernSettingsDialog(QDialog):
                         ),
                     ),
                     ("长期记忆", claim("memory_enabled", "memory_auto_extract", "memory_manage")),
+                    ("主动 AI 陪伴", claim_prefix("proactive_chat_")),
                     ("系统通知", claim("system_notifications_enabled")),
                     (
                         "视觉能力",

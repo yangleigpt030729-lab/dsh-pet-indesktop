@@ -31,8 +31,13 @@ def recall_query(query):
     if '我' not in query and re.search(r'什么|哪些|为何|怎么|为什么|[?？]|[吗么呢]$', query):
         return 'none', ''
     personal = '我' in query
-    recall = personal and bool(re.search(r'记得.*我|回忆.*我|我.*(?:告诉|说过|聊过|提过)|我的.*记忆', query))
+    recall = personal and bool(re.search(
+        r'记得.*我|回忆.*我|我(?:以前|之前|曾经|过去|先前|上次|刚才|和你|跟你|对你|也|已经)*'
+        r'(?:告诉过|说过|聊过|提过)|我的.*记忆', query))
     preferences = personal and bool(re.search(r'喜好|偏好|兴趣|爱好|喜欢|偏爱', query))
+    profile = bool(re.search(r'我的(?:喜好|偏好|兴趣|爱好|名字)|我(?:有什么爱好|喜欢什么)|(?:知道|记得).*(?:我.*(?:爱好|名字)|名字.*我)', query))
+    if not (recall or profile):
+        return 'none', ''
     topic = _FILLER.sub('', query).strip('？?，,：:。！!')
     if preferences and not topic:
         return 'preferences', ''

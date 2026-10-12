@@ -199,6 +199,9 @@ class _AiSettingsPage(QWidget):
             SettingRow("memory_auto_extract", "自动保存明确表达", "另行授权后，自动保存用户明确说出的喜好与事件。仅支持保守规则，不存推测、口令或病史。", self.memory_auto_extract),
             SettingRow("memory_manage", "本地记忆管理", "查看、纠错、删除或备份。删除记忆与清理聊天历史是两个独立操作。", self.memory_manage),
         ], self))
+        from ..companion.proactive_settings import ProactiveSettings
+        self.proactive_settings = ProactiveSettings(config, self)
+        root.addWidget(self.proactive_settings)
         root.addWidget(SettingsSection("系统通知", [
             SettingRow(
                 "system_notifications_enabled", "系统通知",

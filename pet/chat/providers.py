@@ -80,7 +80,19 @@ def normalize_chat_endpoint(base_url,chat_path='/v1/chat/completions'):
     return base+path
 
 class ProviderError(RuntimeError):
-    def __init__(self,message,status=None): self.status=status; super().__init__(f'HTTP {status}: {message}' if status else message)
+    def __init__(self,message,status=None, retry_after=0):
+        self.status=status; self.retry_after=retry_after
+        super().__init__(f'HTTP {status}: {message}' if status else message)
+
+def retry_after_seconds(value):
+    from datetime import datetime, timezone
+    from email.utils import parsedate_to_datetime
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        try: seconds = (parsedate_to_datetime(value)-datetime.now(timezone.utc)).total_seconds()
+        except (ValueError, TypeError, OverflowError): return 0
+    return max(0, min(86400, seconds))
 
 class SSEParser:
     def __init__(self): self._buffer=b''; self.done=False
@@ -120,7 +132,7 @@ class OpenAICompatibleProvider:
         req=urllib.request.Request(endpoint,data=json.dumps(payload,ensure_ascii=False).encode('utf-8'),headers=headers,method='POST')
         try: response=urllib.request.urlopen(req,timeout=config.timeout,context=_make_ssl_context(config.verify_ssl))
         except urllib.error.HTTPError as exc:
-            detail=exc.read(2048).decode('utf-8','replace'); raise ProviderError(_safe_error_detail(detail),exc.code) from exc
+            detail=exc.read(2048).decode('utf-8','replace'); raise ProviderError(_safe_error_detail(detail),exc.code,retry_after_seconds(exc.headers.get('Retry-After') if exc.headers else None)) from exc
         except urllib.error.URLError as exc:
             reason=exc.reason; hint=_CERT_HINT if _is_cert_verify_error(reason) else ''
             raise ProviderError(f'网络连接失败：{reason}{hint}') from exc

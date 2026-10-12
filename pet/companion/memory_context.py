@@ -5,6 +5,7 @@ import logging
 import threading
 from pathlib import Path
 from .memory_extract import extract_memories
+from .memory_retrieve import recall_query
 from .memory_store import MemoryStore, MemoryUnavailable
 
 log = logging.getLogger(__name__)
@@ -59,12 +60,15 @@ class MemoryContext:
         enabled, automatic, stamp = self._policy()
         if not enabled:
             return messages, None
+        scope, _ = recall_query(self.user_text)
+        if scope == 'none' and not extract_memories(self.user_text, automatic):
+            return messages, None
         try:
             store = MemoryStore(self.path)
             revision = store.revision()
             rows = store.search(self.user_text)
             from ..chat.prompt import memory_message
-            quoted = memory_message([f'{r.content}（记录日期：{r.updated_at[:10]}）' for r in rows], include_empty=True)
+            quoted = memory_message([f'{r.content}（记录日期：{r.updated_at[:10]}）' for r in rows], include_empty=scope != 'none')
             # A consent change while SQLite was waiting must not leak the prepared context.
             current_enabled, _, current_stamp = self._policy()
             if not current_enabled or current_stamp != stamp:

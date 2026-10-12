@@ -3750,6 +3750,21 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         """Compatibility delegation (window_alerts.hide_bubble)."""
         return window_alerts.hide_bubble(self, *args, **kwargs)
 
+    def try_show_bubble(self, text: str, duration_ms: int = 5000) -> bool:
+        """Ordinary proactive presentation receipt; preserve show_bubble's API."""
+        if not self.can_show_proactive_bubble():
+            return False
+        self.show_bubble(text, duration_ms)
+        return bool(self._speech_bubble.isVisible())
+
+    def can_show_proactive_bubble(self) -> bool:
+        if (not self.isVisible() or self._bubble_suppressed or self._hidden_paused
+                or getattr(self, '_closing', False) or self._sticky_bubble_active
+                or getattr(self, '_alert_current', None) is not None
+                or time.monotonic() < getattr(self, '_bubble_busy_until', 0)):
+            return False
+        return True
+
     def clear_alerts(self, *args, **kwargs):
         """Compatibility delegation (window_alerts.clear_alerts)."""
         return window_alerts.clear_alerts(self, *args, **kwargs)

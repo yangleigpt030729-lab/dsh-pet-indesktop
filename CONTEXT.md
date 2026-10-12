@@ -110,3 +110,15 @@ reading prevents database access in chat requests; explicit management remains
 available. Memory records are quoted data, never model-generated user facts or
 instructions. Deleting memory and deleting chat history are separate actions.
 _Avoid_: Chat history summary, inferred user profile
+
+**Proactive Companion Chat**:
+An optional process-level AppShell service that reuses the chat Provider and
+character prompt, generates short ordinary text bubbles, and never saves its
+synthetic task or model output into user sessions or long-term memory. Upgrades
+remain opt-out. All ordinary categories share a persisted maximum of ten
+successful presentations per local day and at least thirty minutes between
+presentations; paid attempts have a separate bounded budget. SQLite and model
+work stay off the GUI thread. A crash during the UI/SQLite handoff holds an
+ambiguous reservation conservatively. Explicit Todo delivery is independent;
+P2-C durable outbox and catchup are NOT IMPLEMENTED.
+_Avoid_: Proactive screen recognition, inferred scheduled tasks, proactive TTS

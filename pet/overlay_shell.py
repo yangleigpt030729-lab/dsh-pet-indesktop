@@ -1787,6 +1787,24 @@ class OverlayShell(QObject):
             return False
         return follower.show(text, duration_ms, **kwargs)
 
+    def try_show_bubble(self, text: str, duration_ms: int = 5000) -> bool:
+        """Single primary sprite receipt; ordinary messages yield to important UI."""
+        if not self.can_show_proactive_bubble():
+            return False
+        self._apply_bubble_interactive()
+        shown = self._show_bubble_text(str(text), duration_ms)
+        if shown:
+            self.hold_bubble(duration_ms / 1000 + 2)
+        return bool(shown)
+
+    def can_show_proactive_bubble(self) -> bool:
+        if (not self._sprite_speech_visible(self.sprite) or self._bubble_blocked() or self._speech_bubble is None
+                or self._alert_current is not None or self._sticky_bubble_active
+                or bool(getattr(getattr(self, 'driver', None), 'suspended', False))
+                or time.monotonic() < self._bubble_busy_until):
+            return False
+        return True
+
     def hold_bubble(self, seconds: float) -> None:
         """声明重要气泡占用时长（联动/识屏气泡在此期间让路）。"""
         self._bubble_busy_until = max(

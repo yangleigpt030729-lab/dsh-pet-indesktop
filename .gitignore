@@ -65,3 +65,4 @@ node_modules/
 
 # Private local companion memory must never enter Git.
 companion_memory.sqlite3*
+companion_proactive.sqlite3*

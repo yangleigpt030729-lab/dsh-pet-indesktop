@@ -2,6 +2,7 @@
 """配置读取与持久化；兼容旧版平铺 chat_* 字段的迁移。"""
 
 from __future__ import annotations
+from .companion.proactive_config import normalize_config as _normalize_proactive_chat
 
 import copy
 import errno
@@ -818,6 +819,7 @@ class Config:
             "chat_always_on_top": False,  # 聊天窗置顶
             "dynamic_island": _default_dynamic_island_data(),
             "proactive_screen": _default_proactive_screen_data(),
+            "proactive_chat": _normalize_proactive_chat(None),
             "agent_link": _default_agent_link_data(),
             "file_interpret": _default_file_interpret_data(),
             "chat_ui_style": "modern",  # modern / classic（仅聊天窗口保留双实现）
@@ -944,6 +946,7 @@ class Config:
         if old_version < 2:
             raw.pop("scale", None)
         chat = raw.get("chat") if isinstance(raw.get("chat"), dict) else {}
+        self.data["proactive_chat"] = _normalize_proactive_chat(raw.get("proactive_chat"))
         legacy = {}
         if "chat_enabled" in raw:
             legacy["enabled"] = raw["chat_enabled"]
@@ -1515,6 +1518,8 @@ class Config:
         self.save()
 
     def set(self, key, value):
+        if key == "proactive_chat":
+            value = _normalize_proactive_chat(value)
         self.data[key] = value
         if key in {
             "playback_speed",

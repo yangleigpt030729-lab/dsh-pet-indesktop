@@ -37,6 +37,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon,
 
 from . import autostart as autostart_mod
 from . import catalog
+from .companion import proactive_runtime as companion_runtime
 from . import click_sound
 from . import overlay_instance_gate as overlay_gate_mod
 from . import self_talk_voice
@@ -653,6 +654,7 @@ class PetInstance:
             old_win.agent_link_manager.shutdown()
         # 主窗热切换才换托盘（进程级单托盘）；非主窗热切换不动共享托盘。
         self._build_window(character_id, lib=lib, build_tray=(self is self.shell.instance))
+        companion_runtime.register_session(self.shell)
         if self.enable_chat:
             for chat_window in (self.legacy_chat_window, self.modern_chat_window):
                 if chat_window is not None:
@@ -1123,6 +1125,7 @@ class AppShell:
         self.app = app
         self.config = config
         self._enable_chat = bool(enable_chat)
+        self.companion_service = None
         self._slot_id = slot_id
         # 托盘本体（属性访问器在下方：overlay 拓扑回退到壳持有的托盘）
         self._tray: QSystemTrayIcon | None = None
@@ -1559,6 +1562,7 @@ class AppShell:
         self._apply_balance_timer()
         # Phase 1/2：设置保存后按配置同步可选服务（todo 懒启停）与动画预热
         self._sync_todo_service()
+        companion_runtime.sync(self)
         self._sync_chime_service()
         self._sync_festival_service()
         # 外部配置变更也可能改了 agent_link.dsh（右键菜单开关落盘后同样收敛到
@@ -1956,6 +1960,7 @@ class AppShell:
         self.instance._apply_spawn_offset()
         self._apply_balance_timer()
         self._sync_todo_service()
+        companion_runtime.sync(self)
         # 先同步节日服务：报时服务在 start() 里会立刻 tick 一次，那一刻就需要能问到
         # "本分钟是否让位"。顺序反了会出现"报时先响、节日后响"从而两者都出声。
         self._sync_festival_service()
@@ -1992,9 +1997,14 @@ class AppShell:
         if getattr(self, "_session_watcher", None) is not None:
             return
         try:
+            options = {}
+            if self.enable_chat:
+                options['on_suspend_change'] = lambda active, reason: companion_runtime.suspend(self, active, reason)
             self._session_watcher = install_session_watcher(
                 app=self.app, on_session_end=self._on_session_end,
+                **options,
             )
+            companion_runtime.register_session(self)
         except Exception:
             logging.exception("安装会话结束探测器失败")
 
@@ -2015,6 +2025,7 @@ class AppShell:
         """
         if getattr(self, "_session_end_done", False):
             return
+        companion_runtime.close(self)
         # 「真会话结束」才置位（ops5.5 终审 C2）：SessionWatcher 把 aboutToQuit 也
         # 汇进同一条 arm 回调——那只是正常退出的兜底，不是关机/注销。靠
         # ``_on_about_to_quit`` 先行置下的标记区分（Qt 按连接序调槽，主退出先到）。
@@ -2232,6 +2243,7 @@ class AppShell:
         # 退出标记（R2 第五缺口）：在途自动拉起 worker 凭它中止或补偿收口——
         # 否则「退出时登记表为空 → worker 随后 spawn 登记」会留下永远无人收的进程。
         self._quitting = True
+        companion_runtime.close(self)
         # 窗级收口：逐窗保存位置、停本窗预热与 Agent、提交本窗会话
         for inst in self._instances:
             win = inst.win
@@ -2367,6 +2379,7 @@ class AppShell:
         """
         for shell in tuple(_LIVE_SHELLS):
             try:
+                companion_runtime.close(shell)
                 service = getattr(shell, "todo_service", None)
                 if service is not None:
                     try:
