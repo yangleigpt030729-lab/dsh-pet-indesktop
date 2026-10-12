@@ -1,140 +1,136 @@
-# Windows 10 22H2 x64：P2-B 源码运行与实机验收
+# Windows 10 22H2 x64：完整陪伴增强版集中验收
 
-本指南面向 `feature/win10-companion-memory`，不是 main，也不是上游旧 Releases。
-用户已在 **Windows 10 22H2 x64 / Python 3.12 x64** 实测 GUI 启动、桌宠可见、主动AI设置页面、灵动岛设置入口，以及临时显式注入 Fake 后的“合成测试”气泡。原版右键设置失败、默认 Fake 不触发也已记录。本轮正式修补的 Windows 复验、完整验收、真实 DeepSeek 联网、PowerShell 准备脚本及新 EXE 仍为 **NOT TESTED**。
-本轮提供可复现源码测试包及固定依赖环境，不制作 P5 正式发行版。
-关联：[实机问题修补报告](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)、[上一轮加固](PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md)。
+适用分支：**feature/win10-companion-memory**。关联：[完整交付报告](PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)、[上一轮入口修补](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)、[原打包流水线](ONEDIR_PACKAGING.md)。
 
-## 已有 Python 3.12 环境：最短更新与复测
+用户已实测 Windows 10 / Python 3.12 x64 启动 GUI、桌宠可见、主动 AI 设置、灵动岛设置和临时注入 Fake 后的合成主动气泡。旧右键入口失败及旧默认 Fake 不发言也有用户证据。本轮正式入口修补及新增全部功能须按下表集中复验；不能把云端 Linux/offscreen 结果当成 Windows 验收。真实 DeepSeek：**NOT TESTED**。Windows EXE：**NOT BUILT**。现有 Python 3.12 环境可以继续使用，无需 Git、GitHub Desktop、管理员权限或重新安装 Python。
 
-1. 托盘“全部退出”，下载开发分支的**新 ZIP**，解压到新目录，例如 `D:\Code\FishRetest`；不要覆盖合并旧源码，不要复制临时修补或 `scripts\run_companion_acceptance.py.bak`。保留原 `D:\Code\FishVenv312` 和隔离数据 `D:\Code\FishAcceptance`，无需 Git、GitHub Desktop 或 EXE。
-2. PowerShell 进入新解压根目录（有 `pet`、`assets`、`scripts` 的那一层），使用已经成功的解释器：
+## 1. 下载与安全更新
+
+1. 从托盘选择“全部退出”，关闭独立设置窗口。
+2. 打开 [开发分支](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/tree/feature/win10-companion-memory)，点击 **Code → Download ZIP**。也可直接[下载分支 ZIP](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/archive/refs/heads/feature/win10-companion-memory.zip)。
+3. 解压到新目录，例如 `D:\Code\FishFinal`。进入里面同时有 `pet`、`assets`、`scripts`、`requirements.txt` 的项目根目录。以下命令的第一行用这个实际路径替换。
+4. 保留旧源码、`D:\Code\FishVenv312`、旧 `FishAcceptance` 及 `%APPDATA%` 数据。**不要把旧目录覆盖合并到新目录，也不要复制 `.bak` 或临时修补。** 本轮可独立运行。
+5. 打开普通 PowerShell（标题不要出现“管理员”）。逐行执行：
 
 ```powershell
-Set-Location 'D:\Code\FishRetest\实际解压后的项目目录'
+Set-Location 'D:\Code\FishFinal\实际项目目录'
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -c "import sys,PySide6; print(sys.version,PySide6.__version__)"
-& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --data-dir 'D:\Code\FishAcceptance'
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -c "import sys,struct,PySide6; print(sys.version, struct.calcsize('P')*8, PySide6.__version__)"
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -m pip check
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --data-dir 'D:\Code\FishAcceptanceFinal'
 ```
 
-3. 右键“桌宠设置”应打开与灵动岛相同的设置窗口；重复点击只前置已有窗口，关闭后能重新打开。生成合成气泡后，控制台出现 `FAKE: synthetic proactive bubble displayed`。首次候选在约1.5秒尝试，失败条件则等待30秒调度；全屏、隐藏、聊天/重要提示、最近成功展示或离开电脑仍会延后，不能承诺固定时间必发。
-4. 原测试数据可能已记下此前成功气泡，重启仍受30分钟间隔和每天10条限制。要复验首次展示，用新的**外部**目录，例如 `--data-dir 'D:\Code\FishAcceptanceRetest'`，不要删 SQLite 或修改系统时钟。测试资料仍须用合成信息，无需提供 API Key。
-5. 分别设置 `$env:PET_RENDER_TOPOLOGY='legacy'` 和 `'overlay'`，每次全部退出后换独立目录；复验右键设置、灵动岛设置、关窗重开、多宠子宠对应角色、默认 Fake 气泡、手动聊天优先、退出。首次气泡不是完整Windows验收。
+最后一个目录须是源码外部的新目录。首次创建的新 Fake 目录会开启主动 AI、摸头 AI 和 AI 投喂；**以后重启保留你的关闭选择**。正式产品三个开关默认关闭。首次合适时机显示带“合成测试”的主动气泡，控制台出现 `FAKE: synthetic proactive bubble displayed`。首次尝试约 1.5 秒，后续调度约30秒；隐藏、全屏、聊天、重要提示及离开电脑会延后。
 
-## 1. 用 GitHub 网页下载，不用 GitHub Desktop
+没有马上发言时先检查总开关、可见性和聊天窗口，退出后换一个新外部目录复验首次展示。原验收目录已有额度/间隔状态，不应删 SQLite 或修改系统时钟。新目录无须真实 Key。
 
-1. 打开 https://github.com/yangleigpt030729-lab/dsh-pet-indesktop ，在左上分支选择器选 **feature/win10-companion-memory**。
-2. 点击 **Code → Download ZIP**。亦可使用 https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/archive/refs/heads/feature/win10-companion-memory.zip 。
-3. 右键 ZIP → 全部解压，放到普通本地目录，例如 `C:\DshPetTest`。不要直接在压缩包内运行。项目根目录应同时有 `pet`、`assets`、`requirements.txt`、`scripts`。
-4. 使用交付消息中的新提交版本；`586b776` 是上轮版本，不含本轮收尾。需要固定快照时，GitHub 的 `/archive/<完整提交SHA>.zip` 可替换上述分支ZIP；无需安装Git。
-5. 源码下载不是 EXE，以下通过 Python 运行。现有安装版先用托盘“全部退出”关闭。
+## 2. 依赖与 UTF-8
 
-## 2. Python 与依赖
+主要依赖为 PySide6/shiboken6、Pillow、imageio-ffmpeg（内带 ffmpeg）、keyring、certifi、tzdata、lunar_python、psutil、edge-tts，以及原 Windows 音频/媒体能力的 pycaw/comtypes/WinRT。SQLite 是 Python 标准库；不用安装数据库。pytest/Ruff 供自动测试，Node 20+ 仅供桥接门禁，不是启动依赖。
 
-安装 **Python 3.11 x64**，包含 Windows `py` launcher。官方安装器入口：https://www.python.org/downloads/windows/ 。选择3.11的Windows installer (64-bit)，不要选32位、embeddable或仅源码压缩包。
-在解压目录空白处“在终端/PowerShell中打开”，或执行 `Set-Location 'C:\DshPetTest\实际解压后的项目文件夹'`。
+已有环境安装成功且 `pip check` 通过时无需重装。若缺依赖，使用：
 
 ```powershell
-py -3.11 -X utf8 --version
-py -3.11 -X utf8 -c "import struct; print(struct.calcsize('P')*8)"
-# 上一条应为64
-py -3.11 -X utf8 -m venv .venv-win10
-.\.venv-win10\Scripts\python.exe -X utf8 -m pip install -r requirements.txt -c packaging\constraints-win10-companion.txt
-.\.venv-win10\Scripts\python.exe -X utf8 -m pip check
-.\.venv-win10\Scripts\python.exe -X utf8 -c "import PySide6;from PySide6.QtCore import qVersion;print(PySide6.__version__,qVersion())"
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -m pip install -r requirements.txt -c packaging\constraints-win10-companion.txt
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -m pip check
 ```
 
-末条目标为 **6.8.3 / 6.8.3**。测试配置选择Qt6.8版本线以覆盖Win10，而不是任意升级最新Qt；锁定文件不改变原requirements的运行声明。CI使用Python3.11；用户已用Python3.12 x64及此约束成功安装、启动GUI、显示临时修补后的Fake气泡。可继续使用已有3.12环境；新建3.12环境时将 `py -3.11` 换成 `py -3.12`。这只证明已报告的基础流程，不等于完整Python3.12/Win10验收，也不推广到其他平台或任意Qt版本。云端Python3.12的Qt6.12/6.8.3 offscreen结果另行记录。
+目标 Qt/PySide6 为 **6.8.3**，不要自行升级最新 Qt。所有 Python/pip 命令用 `-X utf8`，解决用户中文 Windows 上已遇到的 GBK requirements 解码错误。无需激活 venv 或修改全局执行策略。
 
-主要依赖：PySide6/shiboken6（GUI），imageio-ffmpeg（自带ffmpeg轮子，无需另装系统ffmpeg）、Pillow、keyring/pywin32-ctypes（系统凭据）、certifi、tzdata、lunar-python；原版能力还用edge-tts、psutil、pycaw/comtypes及WinRT媒体投影包。安装edge-tts不代表主动聊天会调用语音。SQLite是Python标准库，无需安装数据库服务。pytest、Ruff用于自动化测试。完整版本及传递依赖见 `packaging/constraints-win10-companion.txt`。
+新建环境可用 `py -3.12 -X utf8 -m venv D:\Code\FishVenv312`（仅当此目录不存在）。准备脚本支持 `-PythonVersion 3.12`，默认仍3.11。用户3.12基础流程已实测；本轮 Linux3.12/Qt6.8.3补测仅验证自动化行为，不代表所有3.12/Windows能力已通过。
 
-所有安装命令显式加 `-X utf8`，避免中文Windows的GBK requirements解码问题；用户已验证此办法有效。上述直接命令不要求激活venv，也不要求修改PowerShell全局执行策略。可选的 `scripts\prepare_windows_companion.ps1 -PythonVersion 3.12 -RunFocusedTests` 准备3.12环境；默认仍3.11。脚本执行本轮未在Windows验证，下载脚本受执行策略限制时使用直接命令即可。
+## 3. 集中 Fake 验收清单
 
-## 3. 先进行独立 Fake 验收（无真实Key）
+每项填 PASS / FAIL / NOT TESTED，记录时间、拓扑、角色、DPI与屏幕数。
 
-```powershell
-Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-$env:PYTHONUTF8 = '1'
-# 新测试目录在源码目录以外，不使用原版用户数据或凭据
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptance
-```
+| 操作 | 应看到什么 |
+|---|---|
+| 右键 → 桌宠设置；灵动岛 → 设置 | 同一套设置、同一隔离目录和角色；重复点击前置，关闭后可重开 |
+| 右键 → 主动识屏 → 打开设置… | 定位“自动化与联动”；Windows主动识屏区域可见，不自动开启截图 |
+| AI 与对话 → 主动 AI 陪伴 | 可直接输入每日1～9999、间隔1～99分钟；默认10/30；有费用说明 |
+| 保存并退出重启 | 数值保持，配额/间隔不清零；已关闭功能保持关闭 |
+| 旧每日0或旧间隔>99 | 普通主动发言停用并提示确认；原数值保留，不静默增加请求 |
+| 单击可见头部核心（头顶中央、上半脸） | 开启摸头 AI 时只有摸头合成气泡；同次不出现普通自言自语 |
+| 身体、头部边缘单击 | 原点击动画/Q弹/音效和配置允许的自言自语；不开摸头请求 |
+| 关闭摸头后点头；按住拖动；右键 | 分别恢复普通点击、原拖拽、原菜单；拖拽无摸头或普通点击气泡 |
+| 投喂中文名.py/.png/音频/ZIP/文件夹、多文件 | 立即吃文件动画，随后按类型的合成反馈，统计增加、源文件原样 |
+| 关闭 AI 投喂 | 原投喂动画、统计、基础反馈及独立解读确认仍正常 |
+| 原待办面板建立1～2分钟后任务 | 只用原面板；即使主动关掉/额度满/无Key也显示基础提醒 |
+| 待办删除、完成、禁用后退出重启 | 不复活；短时错过可在原10分钟内补发，几天旧任务不集中轰炸 |
+| 记忆管理 | 合成偏好可查看、纠错、删除；关闭授权后不引用私人记忆 |
+| 主动识屏活动记录 → 清除记录 | 仅清除原短期活动记录，AI长期记忆和普通主动配额保留 |
+| 用户手动聊天时摸头/主动消息 | AI让路；手动会话不混入内部互动事件 |
+| 子宠、角色、缩放、镜像、DPI100/125/150%、多屏 | 对应宠点击/投喂/设置归属正确，透明区域无互动 |
+| 设置进程隔离开/关；进程关闭/启动失败 | 正确隔离目录/角色；启动失败能进程内回退 |
+| 原语音试听、语音报时、点击朗读 | 原设置保持；新增问候/摸头/投喂均不自动朗读 |
+| 睡眠唤醒、锁屏/解锁、全屏、午夜、退出/注销 | 无陈旧回调、额度异常、后台请求风暴或卡死 |
 
-默认 **FAKE**：所有ChatService使用合成Provider，不读取/写入系统密钥；urllib联网禁用，设置中的连接测试明确标为模拟。初次测试Provider有独立凭据ref。文字含“合成测试”，用于验证窗口、线程、记忆及频控，**不证明真实模型动态生成**。这只改变独立测试进程/目录；不改变产品默认入口或原版设置。
+身体自言自语是否发生依赖原开关，不要为验证新增 AI 关闭原声音配置。Fake 网络被禁用，真实 Edge TTS 音频/Provider联网需在独立 live 验收中测试；Fake 下网络试听失败不等于语音接线失效。
 
-如果C盘根目录不可写，可用 `--data-dir "$env:LOCALAPPDATA\DshPetCompanionAcceptance"`，但测试数据仍须放在源码目录外。
-
-测试配置与SQLite在 `C:\DshPetAcceptance\dsh-pet-standalone\`。原源码入口通常使用 `%APPDATA%\dsh-pet-standalone\`，原打包变体还可能使用 `%APPDATA%\dsh-pet-standalone-webm-chat\`；验收启动器拒绝源码内部或原版默认目录，默认保留进程内设置。本轮两种右键拓扑都复用ModernSettingsDialog；多宠子设置按slot身份落盘。独立设置进程现在明确携带 `--settings-base` 和角色 `--instance`，Fake验收子进程另携带 `--settings-fake`；即使本机开启进程隔离，也继续使用隔离配置和Fake，不借用生产目录或系统密钥。
-
-- 等待首次合适时机的合成气泡；启用后仍尊重隐藏、全屏、重要提示、聊天窗和30分钟间隔。
-- 右键设置 → AI 与对话：检查主动AI开关、每天上限10、最短30分钟、日程增强“尚未实现”。
-- 开启长期记忆，在手动聊天用合成信息“请记住我喜欢蓝色”；查看记忆管理，再关闭授权。别用真实住址、号码或公司机密做验收。
-- 打开聊天/开始输入，验证普通主动结果让路；分别测试拖动、点击、文件投喂、设置、托盘、角色切换、多宠、透明窗口。文件投喂仍按原有授权规则。
-- 同日跨退出/重启，额度不清零；关闭开关后不安排请求。10条及30分钟的快速逻辑验证用下方虚拟时钟自动测试，**不要改系统时钟或把间隔降到0来加速**。
-
-分别测试两种拓扑，每次先从托盘全部退出：
+两个拓扑每次先全部退出，再各用新外部目录：
 
 ```powershell
 $env:PET_RENDER_TOPOLOGY = 'legacy'
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceLegacy
-# 关闭之后，测试overlay
-$env:PET_RENDER_TOPOLOGY = 'overlay'
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --data-dir C:\DshPetAcceptanceOverlay
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --data-dir 'D:\Code\FishFinalLegacy'
 ```
 
-Overlay本轮选择主宠；主宠被单独隐藏时暂缓，不能在隐藏主宠的位置显示气泡。多宠不能广播同一条普通主动消息。测试完可 `Remove-Item Env:PET_RENDER_TOPOLOGY` 恢复原默认选择。
-
-## 4. 由用户进行真实 DeepSeek 验收
-
-Fake通过后，先全部退出；选新独立目录，显式启用live：
+退出后：
 
 ```powershell
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\run_companion_acceptance.py --live --data-dir C:\DshPetAcceptanceLive
+$env:PET_RENDER_TOPOLOGY = 'overlay'
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --data-dir 'D:\Code\FishFinalOverlay'
 ```
 
-首次新目录主动开关仍默认关闭。设置 → AI与对话：填实际Provider地址、账户可用模型和Key，使用原有本地设置/系统凭据入口保存，先测试连接和手动聊天。**Key只在本机填写，不写源码、约束文件、命令行、截图或ZIP，不发给开发助手。** 新测试目录使用独立的 `provider/acceptance-…` 引用，不覆盖原版Provider的凭据ref。
+结束后 `Remove-Item Env:PET_RENDER_TOPOLOGY -ErrorAction SilentlyContinue`。不要同时运行多个验收实例。
 
-确认手动聊天后，再明确开启主动陪伴。记录首次问候是否自然、角色是否正确、80字附近长度、气泡是否确实更新；至少观察一轮真正30分钟间隔与下一条不同主题。饮水候选需持续活动1.5小时，休息候选1小时，关心2小时；睡眠/离开/暂停会重置活动。只在关心主题且双授权时读取少量安全记忆。模型若拒绝全system任务/模型名/代理/TLS，记录错误类型及时间，不暴露Key和私人Prompt；此兼容性当前仍NOT TESTED。
+**拖文件出现🚫：**检查 PowerShell/桌宠是否管理员运行。普通文件资源管理器向高权限窗口拖放可能被 Windows UAC 拒绝；改为双方普通权限重新运行。不能关闭 UAC 或默认管理员运行来规避。若同权限仍失败，记录拓扑、命中位置、文件类型、是否主/子宠、是否鼠标穿透；这部分须 Windows 原生复验。
 
-原系统代理由Provider正常使用；不要用关闭SSL校验掩盖代理证书问题。真实网络、401/429和费用以用户账户记录验证；云端仅模拟。默认每天最多20次模型尝试、每次96输出token预算，**输入token也计费，次数上限不是人民币费用上限**。
+## 4. 真实 DeepSeek 的安全验收
 
-标准产品入口也可直接运行 `.\.venv-win10\Scripts\python.exe -X utf8 -m pet`；它使用正常用户目录，故本轮优先用上述隔离启动器验收。无需打包EXE即可运行原版动画、设置、聊天与本轮功能。
+Fake完成后全部退出，用另一新目录：
 
-## 5. Windows 自动化复验
+```powershell
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 scripts\run_companion_acceptance.py --live --data-dir 'D:\Code\FishFinalLive'
+```
 
-下面是子进程offscreen自动测试；完成后移除QT_QPA_PLATFORM再跑真实桌面。
+首次 live 开关默认关闭。只在本机设置界面填写真实Provider、模型和Key；先测试连接/手动聊天，再分别授权三个增强开关。不要把Key放进命令行、源码、日志、截图、ZIP或发给助手。验收 ref 与生产 ref 隔离，仍须检查实际目录。无Key时 live 安全不发请求，显式互动可本地文字降级。
+
+普通主动每日模型请求上限为**每日展示额度的两倍**，每次输出96token；输入也计费。9999/1不是保证发9999条，也不是每分钟必发。分类冷却、状态让路和语义去重仍约束调度。高额度费用可能明显增加。摸头同宠10秒、投喂20秒冷却，共享独立单请求互动通路，失败120秒退避，没有自动付费重试；不计普通主动额度。模型失败降级文字不代表真实模型成功。
+
+确认真实问候变化、角色、401/429/TLS/代理、取消、记忆撤销、费用和原Edge TTS试听。正常使用系统代理，不关闭证书校验。本轮真实DeepSeek与Windows声音均 **NOT TESTED**。
+
+## 5. Windows 自动化检查（可选）
 
 ```powershell
 $env:QT_QPA_PLATFORM = 'offscreen'
-.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_companion_settings_entry.py tests\test_companion_proactive_hardening.py tests\test_companion_proactive_state.py tests\test_companion_proactive_service.py tests\test_companion_proactive_failures.py tests\test_companion_proactive_network.py tests\test_companion_proactive_ui.py tests\test_companion_proactive_schedule.py tests\test_companion_acceptance_package.py tests\test_companion_acceptance_launcher.py tests\test_companion_chat.py
-.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q --ignore=tests/test_webm_reader_lifecycle.py --ignore=tests/test_webm_clip_lifecycle.py --ignore=tests/test_webm_first_frame_lock.py --ignore=tests/test_low_priority_warm_interaction_yield.py
-.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_webm_reader_lifecycle.py tests\test_webm_clip_lifecycle.py tests\test_webm_first_frame_lock.py
-.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_low_priority_warm_interaction_yield.py
-.\.venv-win10\Scripts\python.exe -X utf8 -m pytest -q tests\test_frameseq_prefetch_watchdog.py tests\test_frameseq_clip.py
-.\.venv-win10\Scripts\python.exe -X utf8 -m ruff check pet tests
-.\.venv-win10\Scripts\python.exe -X utf8 -m compileall -q pet packaging scripts
-Remove-Item Env:QT_QPA_PLATFORM
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -m pytest -q tests/test_companion_settings_entry.py tests/test_companion_acceptance_launcher.py tests/test_todo_delivery.py tests/test_companion_custom_limits.py tests/test_companion_touch.py tests/test_companion_interactions.py tests/test_companion_feeding.py tests/test_companion_final_settings.py tests/test_companion_data_migration.py tests/test_companion_build_workflow.py
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
-如要跑原CI完整桥接门禁，另装Node20+，使用仓库 `.github/workflows/pr-test.yml` 的七个node测试和verify_import命令；Node不是Python源码桌宠的启动依赖。既有 `tests/smoke.py` 固定51素材断言过时，实际106，本轮没有削弱它；请用 `scripts/smoke_companion_proactive.py` 作有界Fake冒烟，但它的offscreen结果不代替桌面人工验收。
+完整CI分组命令见交付报告。Qt6.8.3已有原基线菜单包装对象回收普查失败，断言保留；offscreen有不支持raise/keyboardgrab提示，不代表原生Windows菜单结果。旧 `tests/smoke.py` 素材数51断言已过时（实际106），同样未削弱。
 
-## 6. 安全、可复现的测试构建
+## 6. Windows 原生 Chat EXE 构建（进阶、可选）
 
-本轮构建的是 **源码测试ZIP**，不是Linux交叉编译的Windows EXE，不冒充正式发行。首次取GitHub ZIP后、输入任何真实凭据前，在外部输出目录执行：
+本轮代码和安全流程已准备，Linux不能构建Windows EXE，状态 **NOT BUILT**。普通用户源码验收不需要做此节。
+
+在普通 PowerShell、项目根目录、关闭旧Chat EXE后执行；WorkDir须全新：
 
 ```powershell
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\package_companion_test.py --output C:\DshPetTestArtifacts\companion-win10-source.zip
-.\.venv-win10\Scripts\python.exe -X utf8 scripts\package_companion_test.py --verify C:\DshPetTestArtifacts\companion-win10-source.zip
-Get-FileHash C:\DshPetTestArtifacts\companion-win10-source.zip -Algorithm SHA256
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_companion.ps1 -PythonExe 'D:\Code\FishVenv312\Scripts\python.exe' -WorkDir 'D:\Code\FishCompanionBuildFinal'
 ```
 
-相同源码字节生成相同ZIP：路径排序、时间戳/权限固定，内含逐文件SHA256。真实Git checkout只选已跟踪公开文件；GitHub ZIP无.git时按相同顶层白名单选择。用户config、SQLite、日志、.env、私钥、venv及node_modules均不进入；非空JSON凭据字段、密钥格式文本、外部symlink使整个构建失败，且不覆盖先前成功ZIP。**不要手工复制APPDATA、聊天库或系统凭据到包中。** 解压后再次按固定约束创建venv即可。
+仅对这一次脚本进程设置执行策略。流程创建干净构建venv/安全源码暂存、固定Qt6.8.3及独立构建工具版本、执行原WebM Chat onedir、复制Qt/ffmpeg与素材、保留瘦身/中文/QtDLL/桥接校验、用临时Fake目录冒烟，再输出 portable ZIP 的真实SHA256。缺Node时原桥接import smoke跳过，交付前应另执行Node门禁。构建失败保留输出供诊断，不以单PID存活冒充成功。
 
-如后来确实需要Windows测试EXE，可在Windows专用干净venv按原 [ONEDIR_PACKAGING](ONEDIR_PACKAGING.md) 使用 `scripts\build_onedir.ps1 -Variant webm-chat`，额外需要PyInstaller和Node；保留原编码/瘦身校验，构建完成检查根目录未夹带数据。该流程已有项目实现，本轮没有改写、没有执行Windows EXE构建，也没有给出可下载新EXE：**NOT TESTED / NOT BUILT**。
+成功时完整目录/ZIP位于：
+`D:\Code\FishCompanionBuildFinal\dsh-pet-companion-win10\dist-onedir\dsh-pet-standalone-webm-chat*`。
+只有Windows实构建成功后才能记录真实包大小/SHA；本报告没有虚构EXE。
 
-## 7. 实机记录（不要记录秘密）
+绿色版须解压**整个目录**，不能单发EXE。双击正常运行不用用户安装Python，数据在 `%APPDATA%\dsh-pet-standalone-webm-chat`。新变体第一次从同base普通旧目录复制配置、会话、两份SQLite、待办/统计/短记录和槽文件，目标已有数据优先，源保留。SQLite用backup含WAL，失败保留pending并暂停普通主动请求；修复源/权限后重启重试。Fake自有base不会导入正式APPDATA。
 
-提交给审查时填：源码提交/ZIP SHA256、winver显示22H2/build19045、x64、Python/Qt版本、DPI/屏幕数、拓扑、测试命令及真实结果。人工逐项记录PASS/FAIL/NOT TESTED：透明/置顶、拖动点击、投喂、两套聊天窗、旧气泡拒绝与新内容回执、开关撤销、记忆查看/删除、不说话时动画推进、角色切换、多宠、全屏、Win+L锁屏、睡眠/恢复、退出/注销/关机、跨午夜/重启、真实Provider生成/取消/费用。
+冻结包的隔离验收入口：`exe --companion-acceptance --data-dir D:\Code\FishExeAcceptance`；尚需Windows构建后验证。卸载绿色版删除解压目录即可，**不删除APPDATA**；安装版按[原Inno Setup指南](ONEDIR_PACKAGING.md)构建，安装/卸载/自启仍须实机验收。
 
-普通消息午夜前5秒暂缓，不是夜间免打扰；跨日/时区突变或过期回执不转借新日额度。不确定的崩溃展示保守占位；校验失败不伪造成功。SQLite v1主动库迁移到v2，长期记忆库schema不变。回滚只关闭功能或恢复源码，**不删除两份用户SQLite**；旧v1代码不识别v2状态库时应安全拒绝服务。
+## 7. 出错、回退和记录
 
-P2-C可靠日程/outbox/补发、P3/P4未实施；本轮结束后等待用户实机验收，不推进这些阶段。
+复制控制台完整异常栈、时间、版本、拓扑、操作步骤；不要复制Provider私密Prompt、Key或个人数据库。设置身份问题可只提供脱敏后的目录尾部和slot号。性能问题记录CPU/RSS、屏幕DPI、是否全屏及近期操作。
+
+安全回退：全部退出 → 回旧源码目录 → 使用原venv/旧验收目录启动。不要删除两份SQLite、原待办JSON或迁移源；新状态格式在旧代码不识别时可能安全拒绝服务，应先关闭对应增强。升级前可在全部退出后把隔离数据目录复制为本地备份，不上传GitHub。若只要停用增强，关闭三个增强开关即可保留原桌宠功能。

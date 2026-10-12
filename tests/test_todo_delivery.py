@@ -161,3 +161,22 @@ def test_delete_during_reserved_disk_write_survives_busy_file_lock(tmp_path, mon
     finally:
         release.set()
         s.stop()
+
+
+def test_delayed_gui_handoff_cannot_show_expired_or_clock_reversed_claim(tmp_path, monkeypatch):
+    from pet.todo_delivery import reserve
+    app, s = setup(tmp_path)
+    fires = reserve(s._store, s._prefs, NOW)
+    assert len(fires) == 1
+    # A queued callback arriving after sleep or clock rollback must recheck time.
+    monkeypatch.setattr(s._disk, 'clock', lambda: NOW+timedelta(minutes=11), raising=False)
+    s._disk._receive(('prepare', s._disk.generation, ([], fires, s._store.load(), False)))
+    from tests.test_companion_chat import wait
+    wait(_qapp(), lambda: not s.busy)
+    assert app.win.bubbles == []
+    fires = reserve(s._store, s._prefs, NOW+timedelta(seconds=31))
+    monkeypatch.setattr(s._disk, 'clock', lambda: NOW-timedelta(minutes=1), raising=False)
+    s._disk._receive(('prepare', s._disk.generation, ([], fires, s._store.load(), False)))
+    wait(_qapp(), lambda: not s.busy)
+    assert app.win.bubbles == []
+    s.stop()

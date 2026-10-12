@@ -173,3 +173,79 @@ def test_unmodified_fake_launcher_displays_bubble_in_real_app_process(tmp_path, 
         datetime.now().astimezone().date().isoformat())['successes'] == 1
     assert not (cfg.dir/'companion_memory.sqlite3').exists()
     assert not list(cfg.dir.glob('*sessions*'))
+
+
+@pytest.mark.parametrize('topology', ['legacy', 'overlay'])
+def test_installed_launcher_fake_head_and_feed_use_real_events_and_bubbles(tmp_path, monkeypatch, installed_fake, topology):
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+    from pet.app import PetInstance
+    from pet.chat.models import SecretStore
+    from pet.companion.interaction_runtime import legacy_head
+    from tests.test_companion_touch import window, send
+    from tests.test_companion_chat import wait
+    from tests.test_companion_settings_entry import overlay_for
+    from tests.test_settings_process_isolation import _bare_shell
+    from tests.test_sprite_feeding import _drop_event
+    import urllib.request
+    app = QApplication.instance() or QApplication([])
+    if topology == 'legacy':
+        app, cfg, host = window(tmp_path/'acceptance')
+    else:
+        cfg = configure(tmp_path/'acceptance')
+    cfg.set('companion_interaction', {'head_touch_enabled': True, 'feeding_enabled': True})
+    cfg.set('click_sound_enabled', False)
+    cfg.save()
+    shell = _bare_shell(cfg)
+    shell.enable_chat = True
+    shell.instance = PetInstance(shell, cfg)
+    shell._instances = [shell.instance]
+    def forbidden(*a, **k):
+        pytest.fail('Synthetic interaction used real network/credentials/TTS')
+    monkeypatch.setattr(SecretStore, 'get', forbidden)
+    monkeypatch.setattr(urllib.request, 'urlopen', forbidden)
+    monkeypatch.setattr(type(shell), 'speak_self_talk', forbidden)
+    if topology == 'legacy':
+        host.companion_shell = shell
+        shell.instance.win = host
+        host.on_companion_head_click = lambda p, press: legacy_head(shell, host, p, press)
+        handler = host.install_file_eater()
+        rect = host._frame_draw_rect()
+        bubble = host._speech_bubble
+        drop = lambda event: handler.eventFilter(host, event)
+        widget = host
+    else:
+        host = overlay_for(shell, cfg)
+        host.overlay.show()
+        rect = host.sprite.rect()
+        bubble = host._speech_bubble
+        widget = host.overlay
+        drop = widget.dropEvent
+    point = QPoint(rect.x()+round(305*rect.width()/640), rect.y()+round(110*rect.height()/360))
+    ordinary = []
+    if topology == 'legacy':
+        host._on_click = lambda: ordinary.append(True)
+    else:
+        host.overlay._on_sprite_click = lambda *a: ordinary.append(True)
+    path = tmp_path/'中文私人代码.py'
+    path.write_text('PRIVATE-CONTENT', encoding='utf-8')
+    try:
+        send(widget, QMouseEvent.Type.MouseButtonPress, point)
+        send(widget, QMouseEvent.Type.MouseButtonRelease, point)
+        wait(app, lambda: getattr(shell, 'companion_interactions', None) is not None)
+        service = shell.companion_interactions
+        wait(app, lambda: not service.busy)
+        assert bubble.isVisible() and '合成测试' in bubble._raw_text and '摸' in bubble._raw_text
+        assert ordinary == []
+        event = _drop_event(QPointF(point), [str(path)])
+        drop(event)
+        assert event.isAccepted()
+        worker = handler if topology == 'legacy' else host._feeding
+        wait(app, lambda: not worker.feed_busy and not service.busy and '括号点心' in bubble._raw_text)
+        assert '合成测试' in bubble._raw_text and path.read_text(encoding='utf-8') == 'PRIVATE-CONTENT'
+        assert not list(cfg.dir.glob('*.sqlite3')) and not list(cfg.dir.glob('*sessions*'))
+    finally:
+        if getattr(shell, 'companion_interactions', None):
+            shell.companion_interactions.close()
+        host.close() if topology == 'legacy' else host.stop()

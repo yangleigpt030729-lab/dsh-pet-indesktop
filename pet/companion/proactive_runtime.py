@@ -83,6 +83,9 @@ def close(shell):
 
 def suspend(shell, active, _reason=''):
     shell._companion_suspended = bool(active)
+    interactions = getattr(shell, 'companion_interactions', None)
+    if interactions:
+        interactions.cancel()
     service = getattr(shell, 'companion_service', None)
     if service:
         service.cancel()

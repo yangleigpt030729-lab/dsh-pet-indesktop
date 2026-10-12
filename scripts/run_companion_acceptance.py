@@ -63,6 +63,7 @@ def configure(data_dir):
         raise ValueError('Choose an acceptance directory outside the checkout and original user data directory')
     first = not (data_dir/APP_DIR_NAME/'config.json').exists()
     config = Config(base=data_dir)
+    config.acceptance_first_run = first
     if first:
         settings = config.chat_settings()
         provider = settings.active_config
@@ -78,12 +79,12 @@ def configure(data_dir):
     return config
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', required=True, type=Path)
     parser.add_argument('--live', action='store_true', help='Use real Provider only after manual Windows credential setup')
     parser.add_argument('--auto-close-seconds', type=int, default=0, help='Optional bounded launcher smoke; not acceptance evidence')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not args.live:
         install_fake_chat()
     from PySide6.QtCore import QTimer
@@ -92,8 +93,9 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     config = configure(args.data_dir)
-    if not args.live:
+    if not args.live and config.acceptance_first_run:
         config.set('proactive_chat', {**config.get('proactive_chat'), 'enabled':True})
+        config.set('companion_interaction', {'head_touch_enabled': True, 'feeding_enabled': True})
     if not config.save():
         raise OSError('Acceptance configuration could not be saved')
     shell = AppShell(app, config)

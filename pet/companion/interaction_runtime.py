@@ -5,7 +5,7 @@ import weakref
 import shiboken6
 from PySide6.QtCore import QPointF
 from .touch_region import head_core_at
-from .interaction_config import normalize_config
+from .interaction_config import enabled
 
 
 def manual_busy():
@@ -38,6 +38,9 @@ class Target:
     def valid(self):
         host = self.host_ref()
         if host is None or not shiboken6.isValid(host):
+            return False
+        shell = getattr(getattr(host, '_instance', None), 'shell', None) if self.sprite_ref else getattr(host, 'companion_shell', None)
+        if getattr(shell, '_quitting', False) or getattr(shell, '_companion_suspended', False):
             return False
         if self.sprite_ref:
             sprite = self.sprite_ref()
@@ -88,7 +91,7 @@ def request(shell, kind, target, metadata=None):
 
 
 def legacy_head(shell, win, point, press=None):
-    if not getattr(shell, 'enable_chat', False) or not normalize_config(win.cfg.get('companion_interaction'))['head_touch_enabled']:
+    if not getattr(shell, 'enable_chat', False) or not enabled(win.cfg, 'head_touch_enabled'):
         return False
     if win._is_transparent_at(point):
         return False
@@ -113,8 +116,8 @@ def legacy_head(shell, win, point, press=None):
 
 
 def overlay_head(shell, overlay, sprite, point, press):
-    cfg = overlay._sprite_config(sprite)
-    if not getattr(shell, 'enable_chat', False) or not normalize_config(cfg.get('companion_interaction'))['head_touch_enabled']:
+    cfg = SpriteInteractionConfig(overlay, sprite)
+    if not getattr(shell, 'enable_chat', False) or not enabled(cfg, 'head_touch_enabled'):
         return False
     local = QPointF(point)-sprite.pos
     if sprite.alpha_at(local) < 16 or abs(sprite._probe_angle)+abs(sprite._throw_angle) > 1e-6:
@@ -163,7 +166,7 @@ def bind_overlay(overlay):
 def offer_feeding(shell, target, metadata):
     if shell is None or not getattr(shell, 'enable_chat', False):
         return False
-    if not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']:
+    if not enabled(target.config(), 'feeding_enabled'):
         return False
     current = service(shell)
     proactive = getattr(shell, 'companion_service', None)

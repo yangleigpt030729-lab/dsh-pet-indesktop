@@ -370,7 +370,8 @@ def add_proactive_menu(menu: QMenu, pet) -> None:
     _toggle('dry-run 验证模式', pro_cfg.get('dry_run', False),
             lambda on: pet.set_proactive_option('dry_run', on))
     sub.addSeparator()
-    open_settings = getattr(pet, 'on_open_modern_settings', None) or getattr(pet, 'on_open_legacy_settings', None)
+    open_settings = (getattr(pet, 'on_open_proactive_settings', None)
+                     or getattr(pet, 'on_open_modern_settings', None) or getattr(pet, 'on_open_legacy_settings', None))
     if open_settings is not None:
         add_action(sub, '打开设置…', None, open_settings, close_on_trigger=True)
 

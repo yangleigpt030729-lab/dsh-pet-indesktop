@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import weakref
 import copy
+from datetime import datetime
 import shiboken6
 from PySide6.QtCore import QObject, Signal, Qt
 from .todo_delivery import reserve, finish, event_key, signature
@@ -17,6 +18,7 @@ class TodoDiskWorker(QObject):
         self.generation = 0
         self.busy = False
         self.closed = False
+        self.clock = datetime.now
         self.ready.connect(self._receive, Qt.QueuedConnection)
 
     def submit(self, action, phase, generation):
@@ -60,8 +62,10 @@ class TodoDiskWorker(QObject):
             receipts = []
             for fire in fires:
                 item = next((i for i in owner._items if i['id'] == fire['id']), None)
+                current_time = self.clock().timestamp()
                 allowed = (not self.closed and generation == self.generation and owner._prefs['enabled']
-                           and item and item['enabled'] and signature(item) == fire['signature'])
+                           and item and item['enabled'] and signature(item) == fire['signature']
+                           and fire['not_before'] <= current_time <= fire['expires'])
                 try:
                     shown = bool(allowed and owner._notify_fire(fire))
                 except Exception:

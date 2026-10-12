@@ -126,6 +126,9 @@ class ChatService(QObject):
         worker.stopped_by_user.connect(lambda rid=rid:self._stopped(rid), Qt.QueuedConnection)
         worker.finished.connect(lambda rid=rid:self._cleanup(rid), Qt.QueuedConnection)
         worker.finished.connect(lambda w=worker: self._workers.discard(w), Qt.QueuedConnection)
+        # Remove native signal/closure ownership after queued cleanup. Observers
+        # may retain a Python wrapper, but not an idle QThread and its prompt.
+        worker.finished.connect(worker.deleteLater, Qt.QueuedConnection)
         if self.notify_global:
             for callback in list(type(self)._global_started_listeners):
                 try: callback()

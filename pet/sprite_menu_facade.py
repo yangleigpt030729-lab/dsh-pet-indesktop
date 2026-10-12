@@ -317,6 +317,12 @@ class SpriteMenuFacade:
         return lambda: opener(sprite)
 
     @property
+    def on_open_proactive_settings(self):
+        opener = getattr(self._shell, 'open_settings_for', None)
+        sprite = self.sprite
+        return (lambda: opener(sprite, initial_page='主动识屏')) if callable(opener) else None
+
+    @property
     def on_look_screen(self):
         """「看看屏幕」：``OverlayShell.look_at_screen(sprite)``（PetWindow.look_at_screen
         的 sprite 等价物，同样只在聊天可用时注入）。

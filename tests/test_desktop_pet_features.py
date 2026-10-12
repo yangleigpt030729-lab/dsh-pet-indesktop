@@ -2116,7 +2116,7 @@ def test_runtime_pet_icon_crops_transparent_canvas_before_scaling():
 def test_windows_build_regenerates_the_icon_before_pyinstaller():
     build_script = Path("scripts/build_onedir.ps1").read_text(encoding="utf-8")
     make_icon = build_script.index("scripts\\make_icon.py")
-    pyinstaller = build_script.index("python -m PyInstaller")
+    pyinstaller = build_script.index("& $PythonExe -X utf8 -m PyInstaller")
     assert make_icon < pyinstaller
     assert "assets\\big_blue_fat_fish;assets\\big_blue_fat_fish" in build_script
     assert "pet\\menu_templates;pet\\menu_templates" in build_script

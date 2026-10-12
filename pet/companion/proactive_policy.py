@@ -5,12 +5,14 @@ _lock = Lock()
 _policies = {}
 
 
-def policy(path):
+def policy(path, *, feature=None):
     with _lock:
-        return _policies.get(str(path), (0, None))
+        key = (str(path), feature) if feature else str(path)
+        return _policies.get(key, (0, None))
 
 
-def set_enabled(path, enabled):
+def set_enabled(path, enabled, *, feature=None):
     with _lock:
-        generation = _policies.get(str(path), (0, None))[0]
-        _policies[str(path)] = (generation+1, enabled)
+        key = (str(path), feature) if feature else str(path)
+        generation = _policies.get(key, (0, None))[0]
+        _policies[key] = (generation+1, enabled)

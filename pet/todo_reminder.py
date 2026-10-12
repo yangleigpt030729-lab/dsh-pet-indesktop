@@ -178,6 +178,8 @@ def advance_todo_state(items, prefs, now: datetime, *,
                     "title": item["title"],
                     "time": item["time"],
                     "phase": phase,
+                    "not_before": fire_dt.timestamp(),
+                    "expires": (fire_dt + grace).timestamp(),
                 })
         if (item.get("kind") == "once" and due_dt is not None
                 and now > due_dt + grace):
@@ -334,6 +336,7 @@ class TodoReminderService:
 
     def request_tick(self, now=None):
         """Production timer path: disk work off-thread, presentation queued to Qt."""
+        self._disk.clock = datetime.now if now is None else lambda: now
         self._disk.request(now or datetime.now())
 
     def apply_config(self) -> None:

@@ -1110,7 +1110,7 @@ class ModernSettingsDialog(QDialog):
         self._pro_add_timer.setSingleShot(True)
         self._pro_add_timer.timeout.connect(self._do_pro_add_foreground)
 
-        self.pro_clear_mem_btn = QPushButton("清除陪伴记忆", self)
+        self.pro_clear_mem_btn = QPushButton("清除记录", self)
         self.pro_clear_mem_btn.setProperty("variant", "ghost")
         self.pro_clear_mem_btn.clicked.connect(self._on_pro_clear_memory)
 
@@ -1196,11 +1196,11 @@ class ModernSettingsDialog(QDialog):
         if cleared is False:
             QMessageBox.warning(
                 self,
-                "陪伴记忆清空失败",
-                "未能清空陪伴记忆：可能主程序正在写入它，或文件被安全软件占用。\n请稍后重试。",
+                "活动记录清空失败",
+                "未能清空主动识屏活动记录：可能主程序正在写入它，或文件被安全软件占用。\n请稍后重试。",
             )
             return
-        QMessageBox.information(self, "陪伴记忆", "已清空主动识屏的短期陪伴记忆。")
+        QMessageBox.information(self, "主动识屏活动记录", "已清空主动识屏的短期活动记录；AI长期记忆与普通问候额度不变。")
 
     def _proactive_page_content(self) -> QWidget:
         content = QWidget(self)
@@ -1270,7 +1270,7 @@ class ModernSettingsDialog(QDialog):
                         stacked=True,
                     ),
                     SettingRow("proactive_whitelist_add", "快捷添加", "点击后 3 秒内切换到目标窗口，自动采样进程名/标题。", self.pro_add_btn),
-                    SettingRow("proactive_memory_clear", "陪伴记忆", "只存进程名和活动分类（不落标题、不存截图），可随时清空。", self.pro_clear_mem_btn),
+                    SettingRow("proactive_memory_clear", "主动识屏活动记录", "只存进程名和活动分类（不落标题、不存截图），不属于AI长期记忆。", self.pro_clear_mem_btn),
                 ],
                 content,
             )
@@ -1682,6 +1682,9 @@ class ModernSettingsDialog(QDialog):
     def select_page(self, label: str) -> bool:
         """按侧栏标题选中页面，供右键菜单/更新通知做深链接。"""
         target = str(label or "").strip()
+        from .settings_deeplinks import select_target
+        if select_target(self, target):
+            return True
         for index in range(self.sidebar.count()):
             if self.sidebar.item(index).text() == target:
                 self.sidebar.setCurrentRow(index)
@@ -1838,6 +1841,7 @@ class ModernSettingsDialog(QDialog):
                     ),
                     ("长期记忆", claim("memory_enabled", "memory_auto_extract", "memory_manage")),
                     ("主动 AI 陪伴", claim_prefix("proactive_chat_")),
+                    ("点击与投喂 AI", claim_prefix("companion_")),
                     ("系统通知", claim("system_notifications_enabled")),
                     (
                         "视觉能力",
@@ -2358,16 +2362,8 @@ class ModernSettingsDialog(QDialog):
         父级（PetWindow / 对话框宿主）通过 on_voice_chime_now 暴露该能力；
         未接线时静默忽略（仅设置界面无副作用）。
         """
-        if self.standalone:
-            # 独立进程没有父级 AppShell：改走本地合成+播放通道（懒 import，
-            # 启动路径不加载 voice_chime_service/edge-tts）。
-            from .settings_standalone import preview_voice_chime
-
-            preview_voice_chime(self, text)
-            return
-        cb = getattr(self.parent(), "on_voice_chime_now", None)
-        if callable(cb):
-            cb(text)
+        from .settings_deeplinks import preview_voice
+        preview_voice(self, text)
 
     def reject(self) -> None:  # noqa: N802 - Qt API
         """Esc 路径与关闭按钮一致：保存设置并应用开机自启。"""

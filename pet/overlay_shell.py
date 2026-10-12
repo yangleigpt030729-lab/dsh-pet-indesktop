@@ -4116,17 +4116,19 @@ class OverlayShell(QObject):
             return main_id
         return slot_manager.slot_to_instance_id(int(slot))
 
-    def open_settings_for(self, sprite=None) -> bool:
+    def open_settings_for(self, sprite=None, initial_page=None) -> bool:
         """Open ModernSettingsDialog for this sprite, with in-process fallback."""
         from .overlay_settings import open_in_process, open_primary
         identity = self.sprite_instance_id(sprite)
-        if open_primary(self, identity):
+        if open_primary(self, identity, initial_page):
             return True
         opener = getattr(getattr(self._instance, "shell", None),
                          "open_settings_process", None)
-        if callable(opener) and opener(_SettingsIdentity(identity)):
-            return True
-        return open_in_process(self, identity)
+        if callable(opener):
+            opened = opener(_SettingsIdentity(identity), page=initial_page) if initial_page else opener(_SettingsIdentity(identity))
+            if opened:
+                return True
+        return open_in_process(self, identity, initial_page)
 
     def _sprite_visible(self, sprite) -> bool:
         """sprite 当前可见性（M14）；无该字段的鸭式 sprite 视为可见。"""

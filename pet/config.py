@@ -888,17 +888,23 @@ class Config:
         避免用户设置与聊天会话“消失”。仅在新目录尚不存在时执行。"""
         if self.instance_id:
             return  # 多开实例不参与旧版迁移，避免把单开配置复制给每个实例
-        if APP_DIR_NAME == "dsh-pet-standalone" or self.path.exists():
+        from .companion.data_migration import migrate_data, PENDING
+        marker = self.dir/PENDING
+        if APP_DIR_NAME == "dsh-pet-standalone" or (self.path.exists() and not marker.exists()):
             return
         legacy = base / "dsh-pet-standalone"
         if not (legacy / "config.json").is_file():
             return
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(legacy / "config.json", self.path)
+            marker.touch(exist_ok=True)
+            if not self.path.exists():
+                shutil.copy2(legacy / "config.json", self.path)
             src_sessions = legacy / "sessions"
-            if src_sessions.is_dir():
+            if src_sessions.is_dir() and not (self.dir/'sessions').exists():
                 shutil.copytree(src_sessions, self.dir / "sessions", dirs_exist_ok=True)
+            if migrate_data(legacy, self.dir):
+                marker.unlink(missing_ok=True)
         except OSError:
             pass
 
@@ -948,6 +954,9 @@ class Config:
             raw.pop("scale", None)
         chat = raw.get("chat") if isinstance(raw.get("chat"), dict) else {}
         self.data["proactive_chat"] = _normalize_proactive_chat(raw.get("proactive_chat"))
+        from .companion.data_migration import PENDING
+        if (self.dir/PENDING).exists():
+            self.data['proactive_chat']['enabled'] = False
         from .companion.interaction_config import normalize_config as normalize_interaction
         self.data['companion_interaction'] = normalize_interaction(raw.get('companion_interaction'))
         legacy = {}

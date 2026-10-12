@@ -292,3 +292,43 @@ def test_right_click_isolated_settings_launches_once_while_pending(settings_host
         assert len(calls) == 1
     finally:
         host.close() if topology == 'legacy' else host.stop()
+
+
+@pytest.mark.parametrize('topology', ['legacy', 'overlay'])
+def test_screen_menu_deferred_deeplink_opens_same_isolated_settings(settings_host, monkeypatch, topology):
+    from pet.context_menus import shared
+    from pet.sprite_menu_facade import SpriteMenuFacade
+    app, shell, cfg = settings_host
+    host = PetWindow(FakeLibrary(), cfg) if topology == 'legacy' else overlay_for(shell, cfg)
+    if topology == 'legacy':
+        host.on_open_chat = lambda: None
+        host.on_open_proactive_settings = lambda: shell.instance.open_modern_settings(initial_page='主动识屏')
+        facade = host
+    else:
+        facade = SpriteMenuFacade(host, host.sprite)
+    menu = QMenu()
+    # Only the Windows-only leaf builder is exercised as a capability simulation.
+    # Restore sys.platform before opening any dialog or importing platform code.
+    try:
+        with monkeypatch.context() as capability:
+            capability.setattr(shared.sys, 'platform', 'win32')
+            shared.add_proactive_menu(menu, facade)
+        action = next(a for sub in menu.findChildren(QMenu) for a in sub.actions() if a.text() == '打开设置…')
+        sub = action.parent()
+        def open_submenu():
+            sub.popup(menu.mapToGlobal(QPoint(20, 20)))
+            QTimer.singleShot(0, sub, action.trigger)
+        menu.aboutToShow.connect(lambda: QTimer.singleShot(0, menu, open_submenu))
+        QTimer.singleShot(10000, menu, menu.close)
+        menu.exec(QPoint(50, 50))
+        callbacks = shared.take_deferred_menu_callbacks(menu)
+        assert len(callbacks) == 1
+        for callback in callbacks:
+            callback()
+        wait(app, lambda: shell.instance.modern_settings_dialog is not None)
+        dialog = shell.instance.modern_settings_dialog
+        assert dialog.config is cfg and dialog.isVisible()
+        assert dialog.sidebar.currentItem().text() == '自动化与联动'
+    finally:
+        menu.deleteLater()
+        host.close() if topology == 'legacy' else host.stop()

@@ -1,16 +1,16 @@
 """Reuse PetInstance settings lifecycle without constructing a legacy pet window."""
 
 
-def open_primary(overlay, identity):
+def open_primary(overlay, identity, initial_page=None):
     instance = overlay._instance
     opener = getattr(instance, 'open_modern_settings', None)
     if identity == getattr(instance.config, 'instance_id', '') and callable(opener):
-        opener()
+        opener(initial_page) if initial_page else opener()
         return True
     return False
 
 
-def open_in_process(overlay, identity):
+def open_in_process(overlay, identity, initial_page=None):
     from .config import Config
     config = overlay._config
     shell = getattr(overlay._instance, 'shell', None)
@@ -25,7 +25,7 @@ def open_in_process(overlay, identity):
     if owner is None:
         owner = PetInstance(shell, Config(base=config.dir.parent, instance_id=identity))
         owners[identity] = owner
-    owner._open_modern_settings_in_process()
+    owner._open_modern_settings_in_process(initial_page)
     dialog = owner.modern_settings_dialog
     if not getattr(dialog, '_overlay_settings_owned', False):
         dialog._overlay_settings_owned = True

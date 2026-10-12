@@ -17,8 +17,11 @@ def source(tmp_path):
 
 def test_source_package_is_deterministic_and_excludes_user_state(tmp_path):
     root = source(tmp_path)
-    for name in ['config.json', 'companion_memory.sqlite3', 'companion_proactive.sqlite3-journal', '.env', 'private.log']:
+    for name in ['config.json', 'companion_memory.sqlite3', 'companion_proactive.sqlite3-journal', '.env', 'private.log',
+                 'todo_items.json', 'todo_items-slot-2.json', 'file_eaten_stats.json', 'proactive_screen_memory.json']:
         (root/'pet'/name).write_text('private synthetic excluded data')
+    (root/'pet'/'sessions').mkdir()
+    (root/'pet'/'sessions'/'private.json').write_text('private synthetic chat')
     first, second = tmp_path/'a.zip', tmp_path/'b.zip'
     assert build(root, first) == build(root, second)
     assert verify(first) == 2

@@ -144,6 +144,19 @@ def capture(args: argparse.Namespace) -> None:
             target = destination / "08-AI 与对话-高级展开.png"
             if not dialog.grab().save(str(target)):
                 raise RuntimeError(f"failed to save screenshot: {target}")
+        if args.companion_details:
+            dialog.select_page('AI 与对话')
+            page = dialog.pages.currentWidget()
+            scroll = page.findChild(QScrollArea, 'settingsScroll')
+            for key in ('proactive_chat_enabled', 'companion_head_touch_enabled', 'companion_feeding_enabled'):
+                row = dialog.findChild(SettingRow, 'settingRow_'+key)
+                if row is None or scroll is None:
+                    raise RuntimeError(f'companion row unavailable: {key}')
+                scroll.ensureWidgetVisible(row, 0, 24)
+                app.processEvents()
+                target = destination / f'08-AI-{key}.png'
+                if not dialog.grab().save(str(target)):
+                    raise RuntimeError(f'failed to save screenshot: {target}')
         if args.menu_details:
             menu_index = next(
                 index
@@ -275,6 +288,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=760)
     parser.add_argument("--dark", action="store_true")
     parser.add_argument("--expanded-ai", action="store_true")
+    parser.add_argument("--companion-details", action="store_true")
     parser.add_argument("--font-scale", type=float, default=1.0)
     parser.add_argument("--extreme-copy", action="store_true")
     parser.add_argument("--expanded-toggles", action="store_true")

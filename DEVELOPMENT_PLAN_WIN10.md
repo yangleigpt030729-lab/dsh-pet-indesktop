@@ -1,5 +1,10 @@
 # DeepSeek 大肥鱼 AI 陪伴增强版 — Codex / Work 开发任务书
 
+## 2026-10-13 用户确认的最终范围（优先于下方原候选方案）
+
+本轮授权连续完成 P2-C、频控范围、P3、P4、P5，最后统一 Windows 验收。最终实现复用原 TodoStore/面板（JSON v2可靠投递），不建第二待办库/自然语言日程；普通主动范围1～9999条/天、1～99分钟，默认10/30；旧0或>99保留原数并停用等待明确确认。头部单击采用可见核心、模糊处身体优先，无长按或抚摸；身体点击和拖拽保留。P3/P4复用ChatService独立瞬时通路，不串写手动会话/记忆，默认关闭；投喂只stat类别/大小统计，原解读独立授权。所有设置在原ModernSettingsDialog中唯一归属；主动识屏活动记录清除不涉及长期SQLite。Windows干净Chat onedir流程已准备，原生EXE NOT BUILT、真实DeepSeek NOT TESTED。详细真实验证见[完整交付报告](docs/PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)与[最终验收指南](docs/WINDOWS10-COMPANION-ACCEPTANCE.md)。下方早期候选架构/头部优先/原固定上限按本节修正，不再代表当前授权或实现。
+
+
 > 项目：[`MerZlin/dsh-pet-indesktop`](https://github.com/MerZlin/dsh-pet-indesktop)  
 > 目标平台：**Windows 10 22H2 x64**（最低兼容性边界须按 Qt/PySide6 依赖核实；目标不是 Windows 11）  
 > 编制日期：2026-10-12  

@@ -36,6 +36,9 @@
 #>
 param(
     [string]$Variant = 'webm-chat',
+    [string]$PythonExe = 'python',
+    [switch]$NoStopRunning,
+    [switch]$SmokeAcceptance,
     [switch]$SkipBuild,
     [switch]$SkipZip,
     [switch]$SkipCheck,
@@ -169,7 +172,7 @@ if ($isGif -and -not $Gif -and -not (Test-Path 'assets\characters_gif')) {
 }
 if ($Gif -and -not $SkipBuild) {
     Write-Host "[1/3] Generating GIF assets..." -ForegroundColor Cyan
-    python scripts\convert_to_gif.py --force --clean
+    & $PythonExe -X utf8 scripts\convert_to_gif.py --force --clean
     if ($LASTEXITCODE -ne 0) { throw "convert_to_gif failed: $LASTEXITCODE" }
 }
 
@@ -179,13 +182,14 @@ if ($Gif -and -not $SkipBuild) {
 $running = Get-Process -Name $name -ErrorAction SilentlyContinue
 if ($running) {
     Write-Host "[build] stopping running $name before build/post-processing..." -ForegroundColor Yellow
+    if ($NoStopRunning) { throw 'Existing Chat process is running; exit it before building.' }
     $running | Stop-Process -Force
     Start-Sleep -Milliseconds 800
 }
 
 if (-not $SkipBuild) {
     Write-Host "[0/3] Generating app icon..." -ForegroundColor Cyan
-    python scripts\make_icon.py
+    & $PythonExe -X utf8 scripts\make_icon.py
     if ($LASTEXITCODE -ne 0) { throw "make_icon failed: $LASTEXITCODE" }
 
     # DLL 冲突隔离（issue: Qt6Core "procedure not found" / 找不到指定的程序）：
@@ -214,7 +218,7 @@ if (-not $SkipBuild) {
         "VARIANT = '$Variant'`n",
         [System.Text.UTF8Encoding]::new($false)
     )
-    python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
+    & $PythonExe -X utf8 -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
         --name $name `
         --distpath dist-onedir `
         --workpath build-onedir `
@@ -250,7 +254,7 @@ if (-not (Test-Path $appDir)) { throw "Build output missing: $appDir" }
 # 随后在 dist 副本上跑 hermetic 冒烟（拷进无 node_modules 的临时目录再 import），
 # 任何外部 bare import 都会直接判构建失败，而不是在用户机器上炸掉 dsh。
 Write-Host "[bridge] enforcing zero-dependency bundle..." -ForegroundColor Cyan
-python scripts\fix_bridge_bundle.py --app-dir $appDir
+& $PythonExe -X utf8 scripts\fix_bridge_bundle.py --app-dir $appDir
 if ($LASTEXITCODE -ne 0) { throw "Bridge zero-dependency check failed: $LASTEXITCODE" }
 Write-Host "[bridge] zero-dependency bundle OK" -ForegroundColor Green
 
@@ -264,7 +268,7 @@ Write-Host "[bridge] zero-dependency bundle OK" -ForegroundColor Green
 # 的 PySide6 runtime 目录，并兜底补齐 platform plugin。
 # 注意：本段 Write-Host 消息保持纯 ASCII——PowerShell 5.1 按系统 ANSI
 # 码页解析 .ps1，可执行字符串里的中文在 GBK 环境下会破坏引号配对。
-$pythonPrefix = (& python -c "import sys; print(sys.prefix)").Trim()
+$pythonPrefix = (& $PythonExe -X utf8 -c "import sys; print(sys.prefix)").Trim()
 $condaBin = Join-Path $pythonPrefix "Library\bin"
 $condaQtPlugins = Join-Path $pythonPrefix "Library\lib\qt6\plugins"
 $bundlePySide = Join-Path $appDir "_internal\PySide6"
@@ -404,7 +408,7 @@ if ($badIcu -or $badQt) {
 # 输出消息保持纯 ASCII——PowerShell 5.1 按 ANSI 码页解析可执行字符串。
 if (-not $SkipSlim) {
     Write-Host "[1.5/3] Slimming bundle (unused Qt modules / redundant resources)..." -ForegroundColor Cyan
-    python scripts\slim_bundle.py --app-dir $appDir
+    & $PythonExe -X utf8 scripts\slim_bundle.py --app-dir $appDir
     if ($LASTEXITCODE -ne 0) { throw "Bundle slimming failed: $LASTEXITCODE" }
     Write-Host "[slim] bundle slimmed" -ForegroundColor Green
 }
@@ -413,7 +417,7 @@ if (-not $SkipSlim) {
 # 编码污染即中止，绝不把乱码包发出去。
 if (-not $SkipCheck) {
     Write-Host "[1.6/3] Chinese-encoding self-check on bundle..." -ForegroundColor Cyan
-    python scripts\check_bundle_encoding.py --dir $appDir
+    & $PythonExe -X utf8 scripts\check_bundle_encoding.py --dir $appDir
     if ($LASTEXITCODE -ne 0) {
         throw "Bundle encoding check failed - refusing to package garbled output (issue #26)"
     }
@@ -460,17 +464,24 @@ if (-not (Test-Path $exePath)) { throw "Build exe missing: $exePath" }
 $verifyScript = Join-Path $root 'scripts\verify_bundle_qt.py'
 if (-not (Test-Path $verifyScript)) { throw "missing verify script: $verifyScript" }
 Write-Host "[smoke] verifying bundle DLL chain (Shiboken/QtCore/QtGui/QtWidgets)..." -ForegroundColor Cyan
-python $verifyScript --internal (Join-Path $appDir '_internal')
+& $PythonExe -X utf8 $verifyScript --internal (Join-Path $appDir '_internal')
 if ($LASTEXITCODE -ne 0) { throw "[smoke] bundle DLL chain verification failed" }
 Write-Host "[smoke] bundle DLL chain OK" -ForegroundColor Green
 
 Write-Host "[smoke] Launching $exePath ..." -ForegroundColor Cyan
-$proc = Start-Process -FilePath $exePath -PassThru
+$companionSmokeBase = $null
+if ($SmokeAcceptance) {
+    $companionSmokeBase = Join-Path $env:TEMP ("dsh-companion-build-smoke-" + [guid]::NewGuid().ToString('N'))
+    $proc = Start-Process -FilePath $exePath -ArgumentList @('--companion-acceptance', '--data-dir', ('"' + $companionSmokeBase + '"')) -PassThru
+} else {
+    $proc = Start-Process -FilePath $exePath -PassThru
+}
 try {
     Wait-SmokeWindow -Process $proc -Label 'exe'
 } finally {
     if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
 }
+if ($companionSmokeBase) { Remove-Item $companionSmokeBase -Recurse -Force -ErrorAction SilentlyContinue }
 Write-Host "[smoke] exe started OK" -ForegroundColor Green
 
 # ---------- --settings 分流冒烟（设置页进程隔离） ----------
@@ -483,7 +494,8 @@ $oldAppData = $env:APPDATA
 $env:APPDATA = $smokeBase
 $settingsProc = $null
 try {
-    $settingsProc = Start-Process -FilePath $exePath -ArgumentList '--settings' -PassThru
+    $settingsSmokeArgs = if ($SmokeAcceptance) { @('--settings', '--settings-fake') } else { @('--settings') }
+    $settingsProc = Start-Process -FilePath $exePath -ArgumentList $settingsSmokeArgs -PassThru
     Wait-SmokeWindow -Process $settingsProc -Label '--settings' `
         -EarlyExitHint 'arg routing broken' `
         -NoWindowHint 'no settings window appeared'

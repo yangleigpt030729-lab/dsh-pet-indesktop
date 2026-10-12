@@ -1540,7 +1540,13 @@ class BaseAgentMonitor(QObject):
                             return
                 self._outbox.append((signal, args))
             return
-        signal.emit(*args)
+        try:
+            signal.emit(*args)
+        except RuntimeError:
+            import shiboken6
+            if shiboken6.isValid(self):
+                raise
+            self._worker_stop.set()
 
     _POLL_INTERVAL_S = 1.5
     _STOP_JOIN_TIMEOUT_S = 2.0

@@ -1,5 +1,10 @@
 # Desktop Pet Experience
 
+## Companion integration (2026-10-13)
+
+The existing Settings System owns proactive_chat and default-off companion_interaction preferences; no parallel settings manager. Ordinary proactive limits are 1..9999 daily / 1..99 minutes (defaults 10/30), with conservative opt-out migration of legacy 0/>99. Explicit reminders keep the existing TodoStore JSON and panel, durable receipt-based delivery within the original ten-minute grace, and one asynchronous disk worker. A visible head core consumes one completed click; ambiguous/body locations retain ordinary clicks, drag/probe/spin precedence stays intact. Touch/feed reuse ChatService in a single ephemeral interaction channel, never write chat sessions or memory; feed prompts contain only bounded safe type/count/size metadata. Manual chat wins. ModernSettingsDialog holds unique interaction rows and the screen-activity clear action retains its old JSON scope. Fake launcher injects isolated Providers and enables enhancements only for a new Fake directory. Same-user normal variant migration preserves SQLite WAL/quota and existing destinations; pending migration pauses ordinary proactive traffic. Native Win10 build/DeepSeek acceptance remains outstanding. See [complete delivery](docs/PR-REPORT-COMPANION-COMPLETE-2026-10-13.md) and [Windows guide](docs/WINDOWS10-COMPANION-ACCEPTANCE.md).
+
+
 The user-facing desktop-pet experience shared by settings, menus, overlays, and
 their platform-specific presentations.
 

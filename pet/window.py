@@ -393,6 +393,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self.on_open_legacy_settings = None
         self.on_open_modern_settings = None
         self.on_companion_head_click = None
+        self.on_open_proactive_settings = None
         self.on_restore_fun_windows = None
         self.on_spawn_pet = None
         self.on_clear_spawned_pets = None

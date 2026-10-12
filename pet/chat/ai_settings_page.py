@@ -202,6 +202,9 @@ class _AiSettingsPage(QWidget):
         from ..companion.proactive_settings import ProactiveSettings
         self.proactive_settings = ProactiveSettings(config, self)
         root.addWidget(self.proactive_settings)
+        from ..companion.interaction_settings import InteractionSettings
+        self.interaction_settings = InteractionSettings(config, self)
+        root.addWidget(self.interaction_settings)
         root.addWidget(SettingsSection("系统通知", [
             SettingRow(
                 "system_notifications_enabled", "系统通知",

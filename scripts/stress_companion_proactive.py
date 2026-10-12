@@ -22,6 +22,11 @@ if __name__ == '__main__':
             print(f'LOAD ROUND {n+1}: 4 CPU burners', flush=True)
             command = [sys.executable, '-m', 'pytest', '-q', 'tests/test_companion_proactive_hardening.py', 'tests/test_companion_proactive_service.py', 'tests/test_companion_proactive_network.py', 'tests/test_companion_proactive_ui.py', 'tests/test_companion_proactive_failures.py', 'tests/test_companion_proactive_state.py', 'tests/test_companion_proactive_schedule.py', 'tests/test_companion_recall_intent.py', 'tests/test_companion_chat.py', 'tests/test_chat_service.py']
             command += ['tests/test_companion_settings_entry.py', 'tests/test_companion_acceptance_launcher.py']
+            command += ['tests/test_todo_delivery.py', 'tests/test_companion_custom_limits.py',
+                        'tests/test_companion_touch.py', 'tests/test_companion_interactions.py',
+                        'tests/test_companion_feeding.py', 'tests/test_companion_final_settings.py',
+                        'tests/test_companion_data_migration.py', 'tests/test_companion_known_regressions.py',
+                        'tests/test_companion_build_workflow.py']
             result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1])
             if result.returncode:
                 sys.exit(result.returncode)

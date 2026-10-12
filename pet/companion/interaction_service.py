@@ -16,7 +16,7 @@ from .memory_context import MemoryContext
 from .proactive_context import ReadOnlyMemory
 from .memory_extract import sensitive
 from .proactive_repeat import text_key
-from .interaction_config import normalize_config
+from .interaction_config import enabled
 from .memory_retrieve import tokens
 
 _LIVE = set()
@@ -69,7 +69,7 @@ class InteractionService(QObject):
         return bool(self.jobs or self.active or self.chat.busy or self.pending_feeds)
 
     def offer_feeding(self, target, metadata):
-        if self.closed or not target.valid() or not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']:
+        if self.closed or not target.valid() or not enabled(target.config(), 'feeding_enabled'):
             return
         meta = safe_metadata(metadata)
         old = self.pending_feeds.get(target.key)
@@ -89,7 +89,7 @@ class InteractionService(QObject):
         for key, entry in list(self.pending_feeds.items()):
             target = entry['target']
             if (not target.valid() or target.identity() != entry['identity'] or now >= entry['expires']
-                    or not normalize_config(target.config().get('companion_interaction'))['feeding_enabled']):
+                    or not enabled(target.config(), 'feeding_enabled')):
                 self.pending_feeds.pop(key, None)
                 continue
             if self.jobs or self.active or self.chat.busy or target.manual_busy() or now < self.cooldowns.get(('feeding', key), 0):
@@ -133,7 +133,7 @@ class InteractionService(QObject):
         if kind not in KIND_KEYS or self.closed or not target.valid():
             return False
         cfg = target.config()
-        if not normalize_config(cfg.get('companion_interaction'))[KIND_KEYS[kind]]:
+        if not enabled(cfg, KIND_KEYS[kind]):
             return False
         now = self.clock()
         key = (kind, target.key)
@@ -173,8 +173,7 @@ class InteractionService(QObject):
         if not r:
             return False
         t = r['target']
-        return t.valid() and not t.manual_busy() and t.identity() == r['identity'] and normalize_config(
-            t.config().get('companion_interaction'))[KIND_KEYS[r['kind']]]
+        return t.valid() and not t.manual_busy() and t.identity() == r['identity'] and enabled(t.config(), KIND_KEYS[r['kind']])
 
     def _prepared(self, result):
         if not self._current():

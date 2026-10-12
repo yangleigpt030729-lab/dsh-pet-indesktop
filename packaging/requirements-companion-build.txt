@@ -1,0 +1,6 @@
+# Build tools only; runtime requirements/Qt pins stay unchanged.
+PyInstaller==6.19.0
+pyinstaller-hooks-contrib==2026.1
+pefile==2024.8.26
+altgraph==0.17.4
+setuptools==80.9.0
