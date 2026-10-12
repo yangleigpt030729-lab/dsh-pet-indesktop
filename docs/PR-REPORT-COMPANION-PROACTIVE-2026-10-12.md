@@ -154,6 +154,6 @@ P2-C可靠日程与补发仍 **NOT IMPLEMENTED**；不从“明天/下周”自�
 
 ## Git 与审查
 
-开发始终在 `feature/win10-companion-memory`，未覆盖main。仓库Git只读可用，但GitHub仓库API实测Forbidden，当前未创建PR；独立分支提交与补丁见交付消息，未合并main。
+实现提交 `586b776` 已推送到 `feature/win10-companion-memory`，未覆盖或合并main。实际执行 `gh pr create --draft` 后，GitHub GraphQL API 返回 Forbidden，未创建PR；可通过该提交审查代码，独立补丁见交付消息。
 
 本轮合计51文件（含16张截图）；本报告自身新增 159 行，删除0行。
