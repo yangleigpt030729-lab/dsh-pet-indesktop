@@ -392,6 +392,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self.on_look_screen = None
         self.on_open_legacy_settings = None
         self.on_open_modern_settings = None
+        self.on_companion_head_click = None
         self.on_restore_fun_windows = None
         self.on_spawn_pet = None
         self.on_clear_spawned_pets = None
@@ -3117,6 +3118,8 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         if event.button() == Qt.MouseButton.LeftButton:
             if not self._is_in_interactive_area(event.position().toPoint()):
                 return  # 左右留白区域不参与点击/拖拽
+            if self.cfg.get('companion_interaction', {}).get('head_touch_enabled') is True and self._is_transparent_at(event.position().toPoint()):
+                return
             if self.click_sound_enabled:
                 pair = resolve_click_sound_pair(self.cfg.get("click_sound_pack"), data_dir=self.cfg.dir)
                 # 每次按下都重置：解析失败/切换音效包时不能复用上一次的旧 pair
@@ -3279,7 +3282,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
                 # 的飞行循环规则接管（当前动作播完后循环悬空动画，落地回待机），
                 # 避免松手帧现场掷骰切到冷首帧动画造成 GUI 同步解码卡顿。
                 self._switch(self._pick(self.idles))
-        elif dist < catalog.DRAG_THRESHOLD * self.scale:
+        elif (self._press_global is not None or self._lock_press_active or self._interaction_state == 'PRESS_CANDIDATE') and dist < catalog.DRAG_THRESHOLD * self.scale:
             # 边缘探头激活时，点击是“拉直/重置倒计时”的探头操作，不是普通点击反馈，
             # 不播点击音效。
             probe_active = getattr(self, '_effects_probe_active', None)
@@ -3289,7 +3292,10 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
                 play_press_sound(self._press_sound_pair, volume)
                 play_release_sound(self._press_sound_pair, volume)
             if not self._try_open_quick_chat_from_bubble(g):
-                self._on_click()
+                head = self.on_companion_head_click
+                press = self.mapFromGlobal(self._press_global) if self._press_global is not None else event.position().toPoint()
+                if not callable(head) or not head(event.position().toPoint(), press):
+                    self._on_click()
         self._dragging = False
         self._interaction_state = "IDLE"
         self._press_global = None

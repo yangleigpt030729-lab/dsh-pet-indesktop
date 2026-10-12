@@ -74,6 +74,8 @@ def register_session(shell):
 
 
 def close(shell):
+    from .interaction_runtime import close as close_interactions
+    close_interactions(shell)
     service = getattr(shell, 'companion_service', None)
     if service:
         service.close()

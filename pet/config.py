@@ -820,6 +820,7 @@ class Config:
             "dynamic_island": _default_dynamic_island_data(),
             "proactive_screen": _default_proactive_screen_data(),
             "proactive_chat": _normalize_proactive_chat(None),
+            "companion_interaction": {'head_touch_enabled': False, 'feeding_enabled': False},
             "agent_link": _default_agent_link_data(),
             "file_interpret": _default_file_interpret_data(),
             "chat_ui_style": "modern",  # modern / classic（仅聊天窗口保留双实现）
@@ -947,6 +948,8 @@ class Config:
             raw.pop("scale", None)
         chat = raw.get("chat") if isinstance(raw.get("chat"), dict) else {}
         self.data["proactive_chat"] = _normalize_proactive_chat(raw.get("proactive_chat"))
+        from .companion.interaction_config import normalize_config as normalize_interaction
+        self.data['companion_interaction'] = normalize_interaction(raw.get('companion_interaction'))
         legacy = {}
         if "chat_enabled" in raw:
             legacy["enabled"] = raw["chat_enabled"]
@@ -1520,6 +1523,9 @@ class Config:
     def set(self, key, value):
         if key == "proactive_chat":
             value = _normalize_proactive_chat(value)
+        if key == 'companion_interaction':
+            from .companion.interaction_config import normalize_config
+            value = normalize_config(value)
         self.data[key] = value
         if key in {
             "playback_speed",

@@ -361,6 +361,7 @@ PER_SLOT_SETTING_KEYS = frozenset({
     "self_talk_min_interval", "self_talk_max_interval",
     "self_talk_speak_enabled", "self_talk_bubble_style", "bubble_text_scale",
     "click_show_balance", "click_show_self_talk",
+    "companion_interaction",
     # 角色（per-pet 素材库）
     "character",
 })
@@ -760,6 +761,9 @@ class ShellOverlayWindow(OverlayWindow):
             route_spin = getattr(self, "_click_route_spin", None)
             if callable(route_spin) and route_spin(grab):
                 return
+            head = getattr(self, '_companion_head_click', None)
+            if event.button() == Qt.MouseButton.LeftButton and callable(head) and head(grab, event.position(), press):
+                return
             clicked = self.behavior.on_sprite_clicked(grab)
             squash = getattr(grab, "squash", None)
             if callable(squash):
@@ -1092,6 +1096,8 @@ class OverlayShell(QObject):
         self.overlay.click_feedback = self._sound.on_click
         # 点击气泡族（余额/点击自言自语）+ 点击音效：与 click_feedback 同位置注入
         self.overlay._on_sprite_click = self._on_sprite_click
+        from .companion.interaction_runtime import bind_overlay
+        bind_overlay(self)
         # M5e：点击触发黄金回旋路由（与 _on_sprite_click 同位置注入）
         self.overlay._click_route_spin = self._route_click_golden_spin
         # 4.1c 弹弓：controller 由 OverlayWindow 自持，这里只接 config
@@ -3903,6 +3909,8 @@ class OverlayShell(QObject):
             self._bind_main_bubble_signals()
         # 点击气泡族：主身份提升后回调仍指本壳（overlay 未变，重挂=幂等对齐）
         self.overlay._on_sprite_click = self._on_sprite_click
+        from .companion.interaction_runtime import bind_overlay
+        bind_overlay(self)
         self._sync_runtime_marker()
 
     # ---------------------------------------------------------------- D7 设置进程避让标记
@@ -4692,6 +4700,8 @@ class OverlayShell(QObject):
         # 点击气泡族（余额/点击自言自语）：新 overlay 上必须重挂，否则屏迁移后
         # 点击静默丢失（与 click_feedback 同位置）
         self.overlay._on_sprite_click = self._on_sprite_click
+        from .companion.interaction_runtime import bind_overlay
+        bind_overlay(self)
         self.overlay._click_route_spin = self._route_click_golden_spin
         self.overlay._full_menu_builder = (
             lambda target: build_sprite_full_menu(self, target))

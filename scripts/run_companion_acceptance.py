@@ -19,11 +19,16 @@ def install_fake_chat():
     if getattr(ChatService.__init__, '_acceptance_fake', False):
         return
     class FakeProvider:
+        synthetic_acceptance = True
         def stream(self, messages, config, cancel):
             if cancel.is_set():
                 return
             text = str(messages)
-            if '"topic": "drink"' in text:
+            if '"interaction": "head"' in text:
+                yield '合成测试：被你轻轻摸一下，本鱼的心情亮晶晶。'
+            elif '"interaction": "feeding"' in text:
+                yield '合成测试：收到这份数字点心啦，原文件好好地留在原地。'
+            elif '"topic": "drink"' in text:
                 yield '合成测试：本鱼提醒你喝点水。'
             elif '"topic": "break"' in text:
                 yield '合成测试：起来活动一下吧，本鱼陪你。'
