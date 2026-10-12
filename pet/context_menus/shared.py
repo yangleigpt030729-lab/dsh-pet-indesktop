@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import time
+import weakref
 
 import shiboken6
 
@@ -628,9 +629,9 @@ class _MusicLaunchBridge(QObject):
     """「打开播放器」worker → GUI 的气泡桥（与 proactive 的 _WatcherBridge 同款）。
 
     后台线程只 emit；槽在 GUI 线程执行——跨线程直接碰 Qt 控件是未定义行为。
-    真实宿主（PetWindow 是 QObject）走 Qt 父子关系保活；非 QObject 宿主（测试
-    替身/最小外壳）没有 parent，由 :func:`_music_launch_bridge` 留一份强引用，
-    等 queued 信号投递完成后在槽里自删。
+    所有宿主都用登记表保活到 worker 完全退出；不挂在可能先关闭的窗口下面，
+    避免 C++ 信号对象销毁与后台 emit 竞争。目标弱引用，迟到提示只在 GUI
+    线程确认目标仍活着后显示。
     """
 
     notice = Signal(str)
@@ -639,16 +640,22 @@ class _MusicLaunchBridge(QObject):
     _worker_done = Signal()
 
     def __init__(self, pet) -> None:
-        parent = pet if isinstance(pet, QObject) else None
-        super().__init__(parent)
-        self._pet = pet
+        super().__init__()
+        try:
+            self._pet_ref = weakref.ref(pet)
+        except TypeError:
+            self._pet_ref = lambda: pet  # Non-Qt minimal host without weakref support.
+        self._worker_complete = threading.Event()
+        self.destroyed.connect(lambda *_: _LAUNCH_BRIDGES.discard(self))
         self.notice.connect(self._show_notice)
         self._worker_done.connect(self._release)
 
     @Slot(str)
     def _show_notice(self, text: str) -> None:
-        _LAUNCH_BRIDGES.discard(self)
-        show = getattr(self._pet, "show_bubble", None)
+        pet = self._pet_ref()
+        if pet is None or (isinstance(pet, QObject) and not shiboken6.isValid(pet)):
+            return
+        show = getattr(pet, "show_bubble", None)
         if callable(show):
             try:
                 show(text, duration_ms=6000)
@@ -658,18 +665,20 @@ class _MusicLaunchBridge(QObject):
     @Slot()
     def _release(self) -> None:
         """worker 收工：摘掉强引用并把对象交还 Qt（成功路径也会走到这里）。"""
+        if not self._worker_complete.is_set():
+            QTimer.singleShot(5, self, self._release)
+            return  # A queued slot can run before the emitter has returned.
         _LAUNCH_BRIDGES.discard(self)
         self.deleteLater()
 
 
-# 非 QObject 宿主的强引用兜底：没有 Qt parent，不留住就被 GC 掉、queued 信号丢失。
+# All bridges stay alive until queued completion; never retain a closed Qt host.
 _LAUNCH_BRIDGES: set = set()
 
 
 def _music_launch_bridge(pet) -> _MusicLaunchBridge:
     bridge = _MusicLaunchBridge(pet)
-    if bridge.parent() is None:
-        _LAUNCH_BRIDGES.add(bridge)
+    _LAUNCH_BRIDGES.add(bridge)
     return bridge
 
 
@@ -698,11 +707,11 @@ def _launch_player_and_play(player_key: str, pet) -> None:
         try:
             exe = music_players.find_player(player_key, manual)
             if not exe:
-                # 桥的生命周期挂在宿主窗口上：浅扫期间窗口被销毁（切换形象/退出）
-                # 时它已经是个死对象，emit 会抛 RuntimeError（同 agent_link 的
-                # 防护写法）。这里必须吞掉——否则 daemon 线程以未捕获异常收尾。
+                # Production bridges outlive the target. Explicit external Qt
+                # destruction (diagnostics/teardown) must also stop emission.
                 try:
-                    bridge.notice.emit(f"找不到{label}：可在 设置 → 桌宠 → 音乐关联 里指定它的程序位置")
+                    if shiboken6.isValid(bridge):
+                        bridge.notice.emit(f"找不到{label}：可在 设置 → 桌宠 → 音乐关联 里指定它的程序位置")
                 except RuntimeError:
                     pass
                 return
@@ -725,9 +734,12 @@ def _launch_player_and_play(player_key: str, pet) -> None:
         finally:
             # 成功路径原先在这里直接 return，桥既不出队也不回收；无论成败都收口。
             try:
-                bridge._worker_done.emit()
+                if shiboken6.isValid(bridge):
+                    bridge._worker_done.emit()
             except RuntimeError:
-                pass  # 宿主窗口已销毁，桥随之一并没了
+                pass  # Explicit external deletion, never emit again.
+            finally:
+                bridge._worker_complete.set()
 
     threading.Thread(target=worker, name="music-launch", daemon=True).start()
 

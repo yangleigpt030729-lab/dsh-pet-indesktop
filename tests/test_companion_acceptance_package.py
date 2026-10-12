@@ -70,3 +70,12 @@ def test_checker_can_be_packaged_without_ignoring_real_secrets(tmp_path):
     root = source(tmp_path)
     (root/'pet'/'checker.py').write_bytes(Path(packager.__file__).read_bytes())
     assert build(root, tmp_path/'source.zip')
+
+
+def test_source_package_retains_third_party_asset_attribution(tmp_path):
+    root = source(tmp_path)
+    (root/'THIRD_PARTY_NOTICES.md').write_text('Synthetic attribution')
+    output = tmp_path/'source.zip'
+    build(root, output)
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read(PREFIX+'THIRD_PARTY_NOTICES.md') == b'Synthetic attribution'

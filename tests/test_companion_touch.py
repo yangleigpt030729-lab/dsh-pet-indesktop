@@ -11,7 +11,9 @@ from tests.test_context_menu_lifecycle import FakeLibrary
 @pytest.mark.parametrize('scale,dpr', [(1, 1), (.5, 1), (.75, 1.25), (.55, 1.5)])
 def test_core_head_survives_overlap_scale_mirror_and_offset(mirror, scale, dpr):
     from pet.companion.touch_region import head_core_at
-    rect = QRect(19, 31, round(640*scale), round(360*scale))
+    # Native frames use physical pixels; mouse positions/draw rectangles use
+    # logical pixels. This models the DPR conversion, not a Windows DPI run.
+    rect = QRect(19, 31, round(640*scale/dpr), round(360*scale/dpr))
     def point(x, y):
         return QPointF(rect.x()+(640-x if mirror else x)*rect.width()/640,
                        rect.y()+y*rect.height()/360)

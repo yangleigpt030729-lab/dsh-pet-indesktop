@@ -27,6 +27,11 @@ if __name__ == '__main__':
                         'tests/test_companion_feeding.py', 'tests/test_companion_final_settings.py',
                         'tests/test_companion_data_migration.py', 'tests/test_companion_known_regressions.py',
                         'tests/test_companion_build_workflow.py']
+            command += ['tests/test_agent_link.py', 'tests/test_agent_link_threads.py',
+                        'tests/test_agent_event_protocol.py', 'tests/test_dsh_state.py',
+                        'tests/test_settings_process_isolation.py', 'tests/test_context_menu_lifecycle.py',
+                        'tests/test_menu_tree_release.py']
+            command += ['tests/test_music_player_cache.py']
             result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1])
             if result.returncode:
                 sys.exit(result.returncode)

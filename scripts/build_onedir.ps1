@@ -239,6 +239,8 @@ if (-not $SkipBuild) {
         --add-data "assets\sounds;assets\sounds" `
         --add-data "assets\chat;assets\chat" `
         --add-data "integrations;integrations" `
+        --add-data "LICENSE;." `
+        --add-data "THIRD_PARTY_NOTICES.md;." `
         @excludes `
         $entry
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed: $LASTEXITCODE" }

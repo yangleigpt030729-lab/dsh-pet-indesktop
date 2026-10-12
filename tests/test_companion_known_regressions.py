@@ -58,3 +58,23 @@ def test_completed_chat_workers_release_native_objects_even_if_observed():
         assert all(not shiboken6.isValid(w) for w in observed)
     finally:
         service.shutdown()
+
+
+def test_music_worker_bridge_outlives_closed_target_without_retaining_it():
+    import shiboken6
+    from PySide6.QtCore import QObject
+    from pet.context_menus import shared
+    app = QApplication.instance() or QApplication([])
+    target = QObject()
+    bridge = shared._music_launch_bridge(target)
+    try:
+        shiboken6.delete(target)
+        assert shiboken6.isValid(bridge)  # Signal owner must survive background work.
+        assert bridge.parent() is None
+        bridge._show_notice('合成迟到提示')  # Discard, never touch the dead target.
+        assert bridge in shared._LAUNCH_BRIDGES
+    finally:
+        if shiboken6.isValid(bridge):
+            bridge._worker_complete.set()
+            bridge._release()
+            QCoreApplication.sendPostedEvents(bridge, QEvent.Type.DeferredDelete)

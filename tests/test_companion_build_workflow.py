@@ -15,6 +15,8 @@ def test_safe_build_reuses_existing_onedir_with_explicit_interpreter():
     assert '[string]$PythonExe' in original
     assert '& $PythonExe -X utf8 -m PyInstaller' in original
     assert '--companion-acceptance' in original
+    assert '--settings-fake' in original
+    assert '--add-data "LICENSE;."' in original and '--add-data "THIRD_PARTY_NOTICES.md;."' in original
     assert 'Get-FileHash' in wrapper
 
 

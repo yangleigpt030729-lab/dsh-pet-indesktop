@@ -10,7 +10,7 @@ import tempfile
 import zipfile
 
 DIRS = {'pet', 'assets', 'scripts', 'packaging', 'tests', 'docs', 'integrations', '.agents', '.github'}
-ROOT_FILES = {'README.md', 'LICENSE', 'requirements.txt', 'pyproject.toml', 'AGENTS.md', 'CONTEXT.md', 'DEVELOPMENT_PLAN_WIN10.md', '.gitignore'}
+ROOT_FILES = {'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'requirements.txt', 'pyproject.toml', 'AGENTS.md', 'CONTEXT.md', 'DEVELOPMENT_PLAN_WIN10.md', '.gitignore'}
 SKIP_DIRS = {'__pycache__', 'node_modules', '.venv', '.git', '.scratch', '.research', 'sessions'}
 TEXT = {'.py', '.md', '.txt', '.json', '.toml', '.ini', '.yaml', '.yml', '.js', '.mjs', '.ps1', '.qss'}
 PREFIX = 'dsh-pet-companion-win10/'
