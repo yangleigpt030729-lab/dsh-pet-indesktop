@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import re
 import sqlite3
 import uuid
 from .memory_extract import normalize, sensitive
@@ -97,7 +96,7 @@ class MemoryStore:
         if not isinstance(content, str) or not content.strip() or len(content.strip()) > 240:
             raise ValueError('记忆需为 1–240 字的非空文本。')
         if sensitive(content):
-            raise ValueError('请勿保存凭据、支付信息或健康病史。')
+            raise ValueError('请勿保存凭据、支付信息、健康病史、联系方式或精确住址。')
         return content.strip()
 
     def _put(self, db, topic, content, kind, source):
@@ -179,24 +178,26 @@ class MemoryStore:
             db.execute('UPDATE memory_meta SET revision=revision+1 WHERE id=1')
 
     def search(self, query, limit=5, char_limit=600):
-        def tokens(text):
-            text = normalize(text)
-            english = set(re.findall(r'[a-z0-9]+', text))
-            chinese = {text[i:i+2] for i in range(len(text)-1) if all('\u4e00' <= c <= '\u9fff' for c in text[i:i+2])}
-            return english | chinese
-        wanted = tokens(query)
+        from .memory_retrieve import recall_query, tokens, relevance, is_preference
+        scope, topic = recall_query(query)
+        count, budget = max(0, min(limit, 5)), max(0, min(char_limit, 600))
+        if scope == 'none' or count == 0 or budget == 0:
+            return []
+        wanted = tokens(topic)
         ranked = []
-        aliases = {'preference:color': '喜欢颜色', 'fact:name': '名字称呼姓名'}
         for row in self.list():
-            score = len(wanted & tokens(row.content + aliases.get(row.topic, row.topic)))
+            # Old P1 records remain visible locally, but private values are never injected.
+            if sensitive(row.content) or (scope == 'preferences' and not is_preference(row)):
+                continue
+            score = relevance(row, wanted) if topic else (1 if scope in {'all', 'preferences'} else 0)
             if score:
                 ranked.append((score, row))
-        ranked.sort(key=lambda item: (item[0], item[1].updated_at), reverse=True)
+        ranked.sort(key=lambda item: (item[0], item[1].updated_at, item[1].id), reverse=True)
         result, used = [], 0
         for _, row in ranked:
-            if len(result) >= max(0, min(limit, 5)):
+            if len(result) >= count:
                 break
-            if used + len(row.content) <= max(0, min(char_limit, 600)):
+            if used + len(row.content) <= budget:
                 result.append(row)
                 used += len(row.content)
         return result

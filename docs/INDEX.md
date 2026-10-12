@@ -75,6 +75,8 @@
 
 ## 聊天、语音与内容功能
 
+- [P2-PROACTIVE-CHAT-IMPLEMENTATION-PLAN.md](P2-PROACTIVE-CHAT-IMPLEMENTATION-PLAN.md)：待确认的 P2 接入、频控/语义去重、到期 outbox 与测试方案；尚未实现。
+
 - [AI-COMPANION-INTEGRATION-NOTES.md](AI-COMPANION-INTEGRATION-NOTES.md)：P0/P1 接入审计、SQLite schema、授权与线程边界；修改长期记忆或聊天接入前必读。
 
 | 文档 | 一句话内容 | 何时必读 |
@@ -132,6 +134,8 @@
 ---
 
 ## PR 报告存档
+
+- [PR-REPORT-COMPANION-MEMORY-HARDENING-2026-10-12.md](PR-REPORT-COMPANION-MEMORY-HARDENING-2026-10-12.md)：P1.1 隐私值过滤、回忆意图检索与真实回归结果。
 
 - [PR-REPORT-COMPANION-MEMORY-2026-10-12.md](PR-REPORT-COMPANION-MEMORY-2026-10-12.md)：P0/P1 交付、逐文件变化、真实性能/测试和 Windows 10 未验证清单。
 
