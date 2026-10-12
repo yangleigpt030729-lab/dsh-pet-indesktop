@@ -99,7 +99,7 @@ class ProactiveService(QObject):
         if cfg['enabled'] and not self.closed:
             if not self.timer.isActive():
                 self.timer.start()
-            self._status('等待合适时机；日程增强尚未实现')
+            self._status('等待合适时机；到期待办由原待办提醒独立投递')
         else:
             self.timer.stop()
             self._status('已关闭；不会安排主动请求')

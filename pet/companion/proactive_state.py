@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import json
 import sqlite3
 import uuid
-from .proactive_config import normalize_config
+from .proactive_config import normalize_config, MAX_DAILY_LIMIT
 
 
 class StateUnavailable(Exception):
@@ -133,7 +133,7 @@ class ProactiveState:
                 return False
             counts = db.execute('SELECT successes FROM days WHERE day=?', (day,)).fetchone()
             held = db.execute('SELECT COUNT(*) FROM reservations WHERE day=?', (day,)).fetchone()[0]
-            if not counts or not 0 <= counts[0] or counts[0]+held > min(10, r['quota']):
+            if not counts or not 0 <= counts[0] or counts[0]+held > min(MAX_DAILY_LIMIT, r['quota']):
                 return False
             last = max(float(self.get(db, 'last', 0)), float(self.get(db, 'tentative_utc', 0)))
             if utc-last < r['spacing']:
@@ -157,9 +157,9 @@ class ProactiveState:
                     return False
                 counts = db.execute('SELECT successes FROM days WHERE day=?', (day,)).fetchone()
                 held = db.execute('SELECT COUNT(*) FROM reservations WHERE day=?', (day,)).fetchone()[0]
-                if not counts or counts[0]+held > min(10, r['quota']):
+                if not counts or counts[0]+held > min(MAX_DAILY_LIMIT, r['quota']):
                     return False
-                updated = db.execute('UPDATE days SET successes=successes+1 WHERE day=? AND successes>=0 AND successes<?', (day, min(10, r['quota']))).rowcount
+                updated = db.execute('UPDATE days SET successes=successes+1 WHERE day=? AND successes>=0 AND successes<?', (day, min(MAX_DAILY_LIMIT, r['quota']))).rowcount
                 if updated != 1:
                     return False  # Preserve the ambiguous claim, never invent success.
                 self.set(db, 'last', max(float(self.get(db, 'last', 0)), now.timestamp()))

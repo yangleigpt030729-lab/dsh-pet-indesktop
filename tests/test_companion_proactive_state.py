@@ -11,8 +11,8 @@ START = datetime(2026, 10, 12, 8, tzinfo=timezone.utc)
 def test_default_privacy_and_bounds():
     assert not normalize_config(None)['enabled']
     assert normalize_config({'enabled': 'true'})['enabled'] is False
-    assert normalize_config({'daily_limit': 100, 'min_interval_minutes': 0})['daily_limit'] == 10
-    assert normalize_config({'daily_limit': 100, 'min_interval_minutes': 0})['min_interval_minutes'] == 30
+    assert normalize_config({'daily_limit': 100, 'min_interval_minutes': 0})['daily_limit'] == 100
+    assert normalize_config({'daily_limit': 100, 'min_interval_minutes': 0})['min_interval_minutes'] == 1
 
 
 def reserve(store, n, now=START, config=CFG):

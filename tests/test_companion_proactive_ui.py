@@ -28,8 +28,7 @@ def test_settings_in_existing_ai_domain_roundtrip(tmp_path, width):
     values = Config(base=tmp_path).get('proactive_chat')
     assert values['enabled'] and values['daily_limit'] == 7
     scheduled = dialog.findChild(SettingRow, 'settingRow_proactive_chat_scheduled_reminders')
-    assert scheduled is not None
-    assert not scheduled.findChildren(ToggleSwitch)[0].isEnabled()
+    assert scheduled is None  # Existing Todo remains the sole reminder entry.
     scroll = dialog.pages.currentWidget().findChild(QScrollArea, 'settingsScroll')
     assert scroll is not None and scroll.verticalScrollBar().maximum() > 0
     page.controls['enabled'].setChecked(False)
