@@ -1792,7 +1792,9 @@ class OverlayShell(QObject):
         if not self.can_show_proactive_bubble():
             return False
         self._apply_bubble_interactive()
+        before = self._speech_bubble.text_presentation_id
         shown = self._show_bubble_text(str(text), duration_ms)
+        shown = shown and self._speech_bubble.text_was_presented(text, before)
         if shown:
             self.hold_bubble(duration_ms / 1000 + 2)
         return bool(shown)

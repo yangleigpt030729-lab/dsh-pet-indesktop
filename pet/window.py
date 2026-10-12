@@ -3754,8 +3754,9 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         """Ordinary proactive presentation receipt; preserve show_bubble's API."""
         if not self.can_show_proactive_bubble():
             return False
+        before = self._speech_bubble.text_presentation_id
         self.show_bubble(text, duration_ms)
-        return bool(self._speech_bubble.isVisible())
+        return self._speech_bubble.text_was_presented(text, before)
 
     def can_show_proactive_bubble(self) -> bool:
         if (not self.isVisible() or self._bubble_suppressed or self._hidden_paused

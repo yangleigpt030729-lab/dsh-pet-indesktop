@@ -77,6 +77,7 @@
 
 - [P2-PROACTIVE-CHAT-IMPLEMENTATION-PLAN.md](P2-PROACTIVE-CHAT-IMPLEMENTATION-PLAN.md)：待确认的 P2 接入、频控/语义去重、到期 outbox 与测试方案；尚未实现。
 
+- [WINDOWS10-COMPANION-ACCEPTANCE.md](WINDOWS10-COMPANION-ACCEPTANCE.md)：通过GitHub网页下载、固定Python/Qt依赖、Fake/live隔离目录、源码ZIP及Windows人工验收；Windows验收必读。
 - [AI-COMPANION-INTEGRATION-NOTES.md](AI-COMPANION-INTEGRATION-NOTES.md)：P0/P1 接入审计、SQLite schema、授权与线程边界；修改长期记忆或聊天接入前必读。
 
 | 文档 | 一句话内容 | 何时必读 |
@@ -134,6 +135,8 @@
 ---
 
 ## PR 报告存档
+
+- [PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md](PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md)：P2-B回执、跨日结算和摘要隐私加固及Win10验收准备；修改相关边界前必读。
 
 - [PR-REPORT-COMPANION-PROACTIVE-2026-10-12.md](PR-REPORT-COMPANION-PROACTIVE-2026-10-12.md)：P1.1个人回忆门禁及P2-A/B主动文字陪伴实现、Fake Provider验证与Windows未验证边界。
 

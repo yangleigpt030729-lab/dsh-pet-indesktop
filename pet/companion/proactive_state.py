@@ -5,6 +5,7 @@ local day ends. SQLite cannot transact atomically with a desktop window.
 """
 from contextlib import contextmanager
 from pathlib import Path
+from datetime import datetime, timedelta
 import json
 import sqlite3
 import uuid
@@ -28,7 +29,7 @@ class ProactiveState:
             conn.row_factory = sqlite3.Row
             conn.execute('BEGIN IMMEDIATE')
             version = conn.execute('PRAGMA user_version').fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise StateUnavailable('unsupported proactive state version')
             if not version:
                 for sql in [
@@ -39,6 +40,14 @@ class ProactiveState:
                 ]:
                     conn.execute(sql)
                 conn.execute('PRAGMA user_version=1')
+            if version < 2:
+                conn.execute('ALTER TABLE reservations ADD COLUMN quota INTEGER NOT NULL DEFAULT 10')
+                conn.execute('ALTER TABLE reservations ADD COLUMN spacing INTEGER NOT NULL DEFAULT 1800')
+                tentative = conn.execute("SELECT id,utc FROM reservations WHERE status='presenting' ORDER BY utc DESC LIMIT 1").fetchone()
+                if tentative:
+                    self.set(conn, 'tentative_id', tentative['id'])
+                    self.set(conn, 'tentative_utc', tentative['utc']+5)
+                conn.execute('PRAGMA user_version=2')
             yield conn
             conn.commit()
         except (sqlite3.Error, OSError) as exc:
@@ -63,6 +72,9 @@ class ProactiveState:
         if not config['enabled'] or not config['daily_limit']:
             return None
         utc, day = now.timestamp(), now.date().isoformat()
+        expires = min(utc+60, (now.replace(hour=0, minute=0, second=0, microsecond=0)+timedelta(days=1)).timestamp()-5)
+        if expires <= utc:
+            return None  # Five-second midnight fence; not a night-time quiet period.
         interval = config['min_interval_minutes'] * 60
         with self.db() as db:
             if self.get(db, 'blocked') == signature or utc < float(self.get(db, 'retry', 0)):
@@ -84,7 +96,7 @@ class ProactiveState:
             if db.execute("SELECT 1 FROM reservations WHERE status='pending'").fetchone():
                 return None
             last = float(self.get(db, 'last', 0))
-            ambiguous = db.execute("SELECT MAX(utc) FROM reservations WHERE status='presenting'").fetchone()[0] or 0
+            ambiguous = max(float(self.get(db, 'tentative_utc', 0)), db.execute("SELECT MAX(utc) FROM reservations WHERE status='presenting'").fetchone()[0] or 0)
             if utc-max(last, ambiguous) < interval:
                 return None
             if db.execute('SELECT 1 FROM reservations WHERE event=? UNION SELECT 1 FROM utterances WHERE event=?', (event, event)).fetchone():
@@ -94,15 +106,17 @@ class ProactiveState:
             if any(category in json.loads(r['tags']) and utc-r['utc'] < cooldown for r in recent):
                 return None
             token = uuid.uuid4().hex
-            db.execute('INSERT INTO reservations VALUES (?,?,?,?,?,?,?,1)', (token, event, day, category, 'pending', utc, utc+60))
+            db.execute('INSERT INTO reservations VALUES (?,?,?,?,?,?,?,1,?,?)', (token, event, day, category, 'pending', utc, expires, config['daily_limit'], interval))
             db.execute('UPDATE days SET attempts=attempts+1,tokens=tokens+96 WHERE day=?', (day,))
             return token
 
-    def retry_attempt(self, token, config):
+    def retry_attempt(self, token, config, now=None):
         config = normalize_config(config)
+        now = now or datetime.now().astimezone()
         with self.db() as db:
             r = db.execute('SELECT * FROM reservations WHERE id=?', (token,)).fetchone()
-            if not r or r['attempts'] >= 2 or r['status'] != 'pending':
+            if (not r or r['attempts'] >= 2 or r['status'] != 'pending'
+                    or r['day'] != now.date().isoformat() or not r['utc'] <= now.timestamp() < r['expires']):
                 return False
             row = db.execute('SELECT attempts FROM days WHERE day=?', (r['day'],)).fetchone()
             if row[0] >= config['daily_limit']*2:
@@ -113,27 +127,58 @@ class ProactiveState:
 
     def mark_presenting(self, token, now):
         with self.db() as db:
-            return db.execute("UPDATE reservations SET status='presenting',utc=? WHERE id=? AND day=? AND status='pending' AND expires>?", (now.timestamp(), token, now.date().isoformat(), now.timestamp())).rowcount == 1
+            utc, day = now.timestamp(), now.date().isoformat()
+            r = db.execute("SELECT * FROM reservations WHERE id=? AND status='pending'", (token,)).fetchone()
+            if not r or r['day'] != day or not r['utc'] <= utc < r['expires']:
+                return False
+            counts = db.execute('SELECT successes FROM days WHERE day=?', (day,)).fetchone()
+            held = db.execute('SELECT COUNT(*) FROM reservations WHERE day=?', (day,)).fetchone()[0]
+            if not counts or not 0 <= counts[0] or counts[0]+held > min(10, r['quota']):
+                return False
+            last = max(float(self.get(db, 'last', 0)), float(self.get(db, 'tentative_utc', 0)))
+            if utc-last < r['spacing']:
+                return False
+            db.execute("UPDATE reservations SET status='presenting',utc=? WHERE id=?", (utc, token))
+            self.set(db, 'tentative_id', token)
+            self.set(db, 'tentative_utc', utc+5)  # Upper bound of a valid UI handoff.
+            return True
 
     def finish(self, token, text, tags, now, shown):
         with self.db() as db:
             r = db.execute("SELECT * FROM reservations WHERE id=? AND status='presenting'", (token,)).fetchone()
             if not r:
                 return False
-            if shown:
+            if shown is True:
                 day = now.date().isoformat()
-                # A result crossing midnight belongs to its presentation day.
-                db.execute('INSERT OR IGNORE INTO days VALUES (?,0,0,0)', (day,))
-                db.execute('UPDATE days SET successes=successes+1 WHERE day=?', (day,))
-                self.set(db, 'last', now.timestamp())
+                # Credit belongs to the pre-presentation claim's local day.
+                # A late/different-day receipt cannot sell a new day's slot.
+                if (day != r['day'] or not r['utc'] <= now.timestamp() <= r['utc']+5
+                        or now.timestamp() >= r['expires']):
+                    return False
+                counts = db.execute('SELECT successes FROM days WHERE day=?', (day,)).fetchone()
+                held = db.execute('SELECT COUNT(*) FROM reservations WHERE day=?', (day,)).fetchone()[0]
+                if not counts or counts[0]+held > min(10, r['quota']):
+                    return False
+                updated = db.execute('UPDATE days SET successes=successes+1 WHERE day=? AND successes>=0 AND successes<?', (day, min(10, r['quota']))).rowcount
+                if updated != 1:
+                    return False  # Preserve the ambiguous claim, never invent success.
+                self.set(db, 'last', max(float(self.get(db, 'last', 0)), now.timestamp()))
                 self.set(db, 'failures', 0)
                 db.execute('INSERT INTO utterances VALUES (?,?,?,?,?,?)', (token, r['event'], text[:80], json.dumps(tags), now.timestamp(), day))
                 db.execute('DELETE FROM utterances WHERE id NOT IN (SELECT id FROM utterances ORDER BY utc DESC LIMIT 100)')
+            elif shown is not False:
+                return False
+            self._clear_tentative(db, token)
             db.execute('DELETE FROM reservations WHERE id=?', (token,))
             return True
 
+    def _clear_tentative(self, db, token):
+        if self.get(db, 'tentative_id') == token:
+            db.execute("DELETE FROM meta WHERE key IN ('tentative_id','tentative_utc')")
+
     def release(self, token):
         with self.db() as db:
+            self._clear_tentative(db, token)
             db.execute('DELETE FROM reservations WHERE id=?', (token,))
 
     def failure(self, status, retry_after, now, signature):
@@ -148,6 +193,11 @@ class ProactiveState:
     def recent(self):
         with self.db() as db:
             return [dict(r) for r in db.execute('SELECT * FROM utterances ORDER BY utc DESC LIMIT 100')]
+
+    def request_window(self, token):
+        with self.db() as db:
+            r = db.execute('SELECT day,expires FROM reservations WHERE id=?', (token,)).fetchone()
+            return dict(r) if r else None
 
     def stats(self, day):
         with self.db() as db:

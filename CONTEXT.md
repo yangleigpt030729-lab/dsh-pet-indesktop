@@ -122,3 +122,11 @@ work stay off the GUI thread. A crash during the UI/SQLite handoff holds an
 ambiguous reservation conservatively. Explicit Todo delivery is independent;
 P2-C durable outbox and catchup are NOT IMPLEMENTED.
 _Avoid_: Proactive screen recognition, inferred scheduled tasks, proactive TTS
+
+Proactive presentation receipts include a new accepted text generation, rather
+than an old widget visibility check. Proactive SQLite v2 binds settlement to its
+reserved local day, quota, spacing and short presentation window. Uncertain
+crash timing survives midnight cleanup. Recent model prompts contain only fixed
+semantic labels; prior utterance wording stays local even when memory consent
+was previously enabled. Windows acceptance uses an isolated source test directory
+and does not ship credentials or pretend a Linux build is a Windows EXE.

@@ -9,6 +9,23 @@ _PATTERNS = {'greeting': r'早安|早呀|早上好|午安|下午好|晚上好|�
              'break': r'久坐|起身|起来|休息|伸.*腰|活动.*身体|歇一|走一走'}
 
 
+def provider_history_summary(recent):
+    """Only fixed semantic labels leave the device; old wording may contain facts.
+
+    This also protects pre-upgrade rows with unknown provenance after revocation
+    or deletion. Full wording remains local for deduplication, never in a prompt.
+    """
+    result = []
+    for row in recent[:3]:
+        try:
+            tags = json.loads(row['tags'])
+        except (ValueError, TypeError, KeyError):
+            continue
+        if isinstance(tags, list):
+            result.append(sorted(set(t for t in tags if isinstance(t, str)) & {'greeting', 'drink', 'break', 'care'}))
+    return result
+
+
 def text_key(text):
     return ''.join(c for c in normalize(text) if c.isalnum())
 

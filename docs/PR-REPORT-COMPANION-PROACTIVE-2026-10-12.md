@@ -157,3 +157,7 @@ P2-C可靠日程与补发仍 **NOT IMPLEMENTED**；不从“明天/下周”自�
 实现提交 `586b776` 已推送到 `feature/win10-companion-memory`，未覆盖或合并main。实际执行 `gh pr create --draft` 后，GitHub GraphQL API 返回 Forbidden，未创建PR；可通过该提交审查代码，独立补丁见交付消息。
 
 本轮合计51文件（含16张截图）；本报告自身新增 159 行，删除0行。
+
+## 第二轮 P2-B 收尾（用户初审之后）
+
+后续 [加固报告](PR-REPORT-COMPANION-PROACTIVE-HARDENING-2026-10-12.md) 修补真实文字回执、结算复核/跨日崩溃间隔和撤销授权后的旧台词摘要旁路。主动状态库升级v2，旧台词不再上传，仅固定语义标签进入Prompt。[Windows验收步骤](WINDOWS10-COMPANION-ACCEPTANCE.md) 提供网页ZIP、固定依赖及隔离Fake/live源码启动。前述测试数据保留为上轮历史，不冒充本轮或Windows结果。

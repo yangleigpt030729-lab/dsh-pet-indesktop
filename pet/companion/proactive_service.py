@@ -22,7 +22,7 @@ from .memory_extract import sensitive
 from .proactive_config import normalize_config
 from .proactive_policy import policy
 from .proactive_context import ReadOnlyMemory
-from .proactive_repeat import classify, repeats
+from .proactive_repeat import classify, repeats, provider_history_summary
 from .proactive_schedule import Scheduler
 from .proactive_state import ProactiveState
 
@@ -149,7 +149,7 @@ class ProactiveService(QObject):
         policy = MemoryContext.from_config(self.config, '')
         provider = replace(settings.active_config, max_tokens=96, timeout=min(20, settings.active_config.timeout))
         def preflight():
-            if not provider.api_key:
+            if not provider.api_key and not self.fake:
                 provider.api_key = SecretStore().get(provider.api_key_ref)
             if not self.fake and (not provider.api_key or not provider.base_url or not provider.model):
                 return {'unavailable': True}
@@ -164,8 +164,11 @@ class ProactiveService(QObject):
                         '内部主动陪伴任务，不是用户发言。保持当前角色，温柔自然、稍俏皮。仅输出1至2句话，最多80字。'
                         '不要推测用户事实，不宣称监视用户，不创建日程，不要求回答。根据时段与主题动态写新话，不重复最近内容。'
                         +json.dumps({'local_time': now.strftime('%Y-%m-%d %H:%M'), 'topic': candidate.category,
-                                    'recent': [r['text'] for r in recent[:3]]}, ensure_ascii=False)}]
-                    context = ReadOnlyMemory(policy, cfg['use_memory'] and candidate.category == 'care')
+                                    'recent_topics': provider_history_summary(recent)}, ensure_ascii=False)}]
+                    window = self.state.request_window(token)
+                    if window is None:
+                        return {}
+                    context = ReadOnlyMemory(policy, cfg['use_memory'] and candidate.category == 'care', window=window, clock=self.clock)
                     return dict(token=token, messages=messages, provider=provider, signature=signature,
                                 context=context, category=candidate.category, cfg=cfg)
             return {}
@@ -180,7 +183,7 @@ class ProactiveService(QObject):
             return
         if 'token' not in result:
             return
-        if generation != self.generation or self.closed or not self.snapshot().allowed or self._settings()[3] != self.identity:
+        if generation != self.generation or self.closed or not self.snapshot().allowed or self._settings()[3] != self.identity or not result['context'].request_valid():
             self._submit(lambda: self.state.release(result['token']), lambda *_: None)
             return
         self.token = result['token']
@@ -205,7 +208,7 @@ class ProactiveService(QObject):
             if not text or len(text) > 80 or sensitive(text) or not context.valid():
                 return 'discard'
             if repeats(text, self.state.recent(), now.timestamp(), cfg['avoid_semantic_repeats'], category):
-                return 'retry' if self.state.retry_attempt(token, cfg) else 'discard'
+                return 'retry' if self.state.retry_attempt(token, cfg, now) else 'discard'
             return 'show' if self.state.mark_presenting(token, now) else 'discard'
         self._submit(validate, lambda result, gen: self._validated(result, gen, text, now))
 
@@ -216,7 +219,7 @@ class ProactiveService(QObject):
             self.cancel()
             return
         actual_now = self.clock()
-        if actual_now.date() != now.date() or abs(actual_now.timestamp()-now.timestamp()) > 5:
+        if actual_now.date() != now.date() or abs(actual_now.timestamp()-now.timestamp()) > 5 or not self.context.request_valid():
             self.cancel()
             return
         now = actual_now
@@ -236,11 +239,19 @@ class ProactiveService(QObject):
                 shown = False
         token, category = self.token, self.request['category']
         self.token = None
+        receipt_time = self.clock()
         if shown:
             self.last_mono = self.monotonic()
             self.delivered.emit(text)
-        self._submit(lambda: self.state.finish(token, text, sorted(classify(text, category)), now, shown), lambda *_: None)
-        self._status('已显示' if shown else '窗口未接受气泡；不计成功次数')
+        self._submit(lambda: self.state.finish(token, text, sorted(classify(text, category)), receipt_time, shown),
+                     lambda settled, gen: self._settled(settled, gen, shown))
+        self._status('气泡已接受，等待结算' if shown else '窗口未接受气泡；不计成功次数')
+
+    def _settled(self, settled, generation, shown):
+        if self.closed or generation != self.generation:
+            return
+        self._status('已显示并结算' if shown and settled is True else
+                     '展示结算未确认；保守占位' if shown else '窗口未接受气泡；不计成功次数')
 
     def _failure_info(self, rid, info):
         if rid == getattr(self, 'rid', None):

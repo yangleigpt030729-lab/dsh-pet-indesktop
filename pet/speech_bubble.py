@@ -382,6 +382,7 @@ class PetSpeechBubble(QFrame):
         )
         self._content_kind = "text"
         self._raw_text = ""
+        self._text_presentation_id = 0
         # 多行模式：保留调用方写好的换行（如"标题一行 + 内容一行"）。
         # 由 show_text 的 subtitle 是否有内容推导，避免为它增加公开参数。
         self._multi_line = False
@@ -609,6 +610,15 @@ class PetSpeechBubble(QFrame):
             return
         super().mouseReleaseEvent(event)
 
+    @property
+    def text_presentation_id(self) -> int:
+        return self._text_presentation_id
+
+    def text_was_presented(self, text: str, after: int) -> bool:
+        """A new accepted text presentation, not merely a visible old widget."""
+        return (self._text_presentation_id > after and self.isVisible()
+                and self._content_kind == 'text' and self._raw_text == str(text).strip())
+
     def show_text(
         self,
         text: str,
@@ -790,6 +800,7 @@ class PetSpeechBubble(QFrame):
             self._hide_timer.stop()
         else:
             self._hide_timer.start(max(500, int(duration_ms)))
+        self._text_presentation_id += 1
 
     def _setup_buttons(self, buttons: list[tuple[str, object]]) -> None:
         """清空旧按钮并按元素重建按钮行（仅交互气泡用）。
