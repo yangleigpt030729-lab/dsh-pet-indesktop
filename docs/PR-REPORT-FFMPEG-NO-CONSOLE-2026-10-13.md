@@ -125,3 +125,48 @@ git diff HEAD --check
 Windows本轮仍须按指南第11节使用全新WorkDir/绿色目录与Fake数据执行实际EXE验收，保留用户旧目录和正式APPDATA。原生Job权限/父Job限制、AttachConsole行为、PyInstaller7.1 FFmpeg及Windows5.1解析还没有本次实机结果；原防护失败降级策略未改。Python3.12/Qt6.8.3已有用户实测，不外推全平台兼容。标准库便利函数绑定适用已支持Python3.11/3.12，升级SDK/Python时要保留这组契约与真实原生测试。
 
 观察器50ms抽样可能漏过极短闪烁，按已知新包完整FFmpeg标题匹配；手工看到窗口仍判FAIL。工具不自动认证8个交互场景/帧率/声音，未观察到FFmpeg或非正常退出返回失败/NOT TESTED；孤儿只认已记录的PID+创建时间，避免PID复用误判，不删除用户文件、不批量杀进程。尚需人工确认快速切换/睡眠唤醒/长期回收的实际体验。本轮完成后停止开发，等待用户Windows验收；不进入新功能、不合并main。
+
+
+## 第二轮：原生测试探针先解除自身控制台（2026-10-13）
+
+用户新增Windows证据：PowerShell5.1四个正式脚本parse PASS；改用D盘basetemp后47 passed、6 failed，失败集中在原生FFmpeg测试，关键结果attached=False/error=5。本轮只修测试探针/判断，不修改任何pet产品代码或打包脚本。
+
+旧探针未显式FreeConsole，不能仅凭诊断进程的CREATE_NO_WINDOW假定它未附着控制台。Win32 AttachConsole的ERROR_ACCESS_DENIED也可能表示调用方已附着，不能直接解释为目标FFmpeg有窗口。本机用实际探针脚本、只替换Win32 API边界，重现自身附着时对无控制台目标错误返回5；这是可复现的测试缺口，不声称已经在用户电脑确认最终根因。
+
+修正：FreeConsole成功后检查GetConsoleWindow为空，清空本线程旧错误，再AttachConsole；JSON携带detached证据。解除失败/仍附着直接终止探针；目标附着成功仍失败（包括隐藏控制台）；错误5仍失败。只接受确认脱离后的错误6，或原有错误87且原Popen句柄确认目标已退出。CREATE_NO_WINDOW、真实帧/透明像素、退出/无孤儿等断言全部保留。
+
+### 修改文件说明（本轮）
+
+相对d202d6e，共3文件，新增1文件、无删除；产品/构建文件改动0。
+
+| 文件 | 增 / 删 | 原因 |
+|---|---:|---|
+| `tests/test_ffmpeg_windows_console.py` | 22 / 5 | 只调整探针自身脱离及严格判断，原7个真实FFmpeg情形保持。 |
+| `tests/test_ffmpeg_console_probe.py` | 87 / 0 | 新增8个窄范围用例：自有/无自有控制台、目标有控制台反例、Free失败、错误5、未确认脱离、活目标87拒绝及已退目标87。 |
+| `docs/PR-REPORT-FFMPEG-NO-CONSOLE-2026-10-13.md` | 45 / 0 | 追加用户实测、测试修正证据、专项命令和新WorkDir构建入口；保留前轮历史。 |
+
+### 性能分析（本轮）
+
+产品稳态新增调用/线程/网络/磁盘工作为0（git diff无pet或构建脚本修改）。每个既有诊断子进程仅追加一次FreeConsole、一次GetConsoleWindow和两次ctypes本线程错误清零，新增一个布尔JSON字段；不新增进程/轮询/队列。真实Windows API延时NOT TESTED，Linux模拟API测试执行耗时0.36s（8通过7原生跳过），不作为Windows性能数据。无产品内存增长路径。
+
+### 实机运行记录（本轮）
+
+用户的PowerShell四脚本PASS已记录；Windows专项目前为用户报告47通过6失败，不能写成已通过。本机仍Linux、无远程Windows运行器，本轮真正FreeConsole/AttachConsole及新版EXE效果NOT TESTED，需用户以下复验。Linux执行的是原探针文本与模拟Win32边界，目标有控制台反例会被严格拒绝，没有模拟成功冒充原生验证。
+
+### 测试结果（本轮）
+
+修正前新增3项探针回归均失败（3 failed in 0.37s），其中自身附着/无控制台目标返回5；修正后8 passed、7 skipped in 0.36s。Ruff、两测试文件compileall、diff check PASS。本轮仅测试探针修正，遵照用户“只修这一处，不做过多检测”未重复运行前轮完整套件/压力，未重测产品性能或联网。
+
+命令：`python -m pytest -q tests/test_ffmpeg_console_probe.py tests/test_ffmpeg_windows_console.py`。日志 `/tmp/ffmpeg-probe-{red,green}.log`。
+
+更新分支源码后，在最新项目根目录运行以下**一条PowerShell专项命令**。basetemp须为新的pytest专用临时目录，pytest会清空该目录，不指向源码、旧构建或正式数据：
+
+```powershell
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -m pytest -q tests/test_ffmpeg_console_probe.py tests/test_ffmpeg_windows_console.py --basetemp 'D:\Code\FishPytestConsoleProbe20261013R1'
+```
+
+仅在专项全部通过后，依[指南第11节](WINDOWS10-COMPANION-ACCEPTANCE.md#11-ffmpeg-黑窗口修复重新打包与原生复验)继续真实Windows打包/EXE验收；新WorkDir示例（不得覆盖已有目录）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_companion.ps1 -PythonExe 'D:\Code\FishVenv312\Scripts\python.exe' -WorkDir 'D:\Code\FishCompanionBuildConsoleProbe20261013R1'
+```

@@ -16,16 +16,34 @@ from pet import animation_thumbnail, frameseq_provision as provision, webm_clip
 pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason='native Windows console/kernel required')
 ROOT = Path(__file__).resolve().parents[1]
 
-# This diagnostic starts without a console. AttachConsole succeeds if the
-# FFmpeg process has one (even if STARTUPINFO merely hid its window).
+# Explicitly detach the diagnostic itself; launch flags alone are not proof
+# that it has no console. AttachConsole then tests the target, even if hidden.
 _CONSOLE_PROBE = r'''
 import ctypes, json, sys
 k = ctypes.WinDLL('kernel32', use_last_error=True)
+k.FreeConsole.argtypes = []
+k.FreeConsole.restype = ctypes.c_int
+k.GetConsoleWindow.argtypes = []
+k.GetConsoleWindow.restype = ctypes.c_void_p
 k.AttachConsole.argtypes = [ctypes.c_uint32]
 k.AttachConsole.restype = ctypes.c_int
+ctypes.set_last_error(0)
+if not k.FreeConsole():
+    raise ctypes.WinError(ctypes.get_last_error())
+detached = not bool(k.GetConsoleWindow())
+if not detached:
+    raise RuntimeError('probe still has its own console')
+ctypes.set_last_error(0)
 attached = bool(k.AttachConsole(int(sys.argv[1])))
-print(json.dumps({'attached': attached, 'error': ctypes.get_last_error()}))
+error = ctypes.get_last_error() if not attached else 0
+print(json.dumps({'detached': detached, 'attached': attached, 'error': error}))
 '''
+
+
+def _assert_no_console(result, proc):
+    assert result['detached'] is True, result
+    assert not result['attached'], f'FFmpeg has a console: {proc.pid}'
+    assert result['error'] == 6 or (result['error'] == 87 and proc.poll() is not None), result
 
 
 @pytest.mark.parametrize('entry', ['version', 'metadata', 'first_frame', 'reader_restart',
@@ -46,8 +64,7 @@ def test_real_spawn_has_no_console_outputs_frames_and_exits(monkeypatch, tmp_pat
                                    creationflags=subprocess.CREATE_NO_WINDOW)
             assert probe.returncode == 0, probe.stderr
             result = json.loads(probe.stdout)
-            assert not result['attached'], f'FFmpeg has a console: {proc.pid}'
-            assert result['error'] == 6 or (result['error'] == 87 and proc.poll() is not None), result
+            _assert_no_console(result, proc)
         return proc
 
     monkeypatch.setattr(webm_clip._PopenCapture, '_real_popen', observe)
