@@ -994,6 +994,8 @@ class ModernSettingsDialog(QDialog):
         self.spawn_inherit_size_check.toggled.connect(self._update_spawn_size_controls)
         self.golden_spin_click_check.toggled.connect(self._update_golden_spin_controls)
         self.click_self_talk_check.toggled.connect(self._update_click_self_talk_controls)
+        from .companion.head_speech import save_toggle
+        self.click_self_talk_speak_check.toggled.connect(lambda value: save_toggle(self, value))
         self._update_self_talk_controls(self.self_talk_check.isChecked())
         self._update_click_self_talk_controls(self.click_self_talk_check.isChecked())
         self._update_translucency_controls(self.menu_translucent_check.isChecked())
@@ -1308,15 +1310,12 @@ class ModernSettingsDialog(QDialog):
     def _update_click_self_talk_controls(self, enabled: bool) -> None:
         """点击自言自语（``click_self_talk``）的后续项显隐。
 
-        预缓存也跟这里：只有点击链路才会把台词**读出来**（周期气泡只显示不朗读），
-        所以点击开关关着时预缓存没有意义。
+        绑定与预缓存只跟普通点击；共享朗读在普通点击或摸头开启时显示。
         """
-        keys = (
-            "click_self_talk_speak",
-            "click_self_talk_precache",
-            "click_talk_bindings",
-        )
+        keys = ("click_self_talk_precache", "click_talk_bindings")
         self._set_setting_rows_visible(keys, enabled, dependency="click_self_talk")
+        head = getattr(self, 'companion_head_touch_check', None)
+        self._set_setting_rows_visible(('click_self_talk_speak',), bool(enabled or (head and head.isChecked())))
 
     def _update_island_controls(self, enabled: bool) -> None:
         settings_pet_controls._update_island_controls(self, enabled)
@@ -1841,7 +1840,7 @@ class ModernSettingsDialog(QDialog):
                     ),
                     ("长期记忆", claim("memory_enabled", "memory_auto_extract", "memory_manage")),
                     ("主动 AI 陪伴", claim_prefix("proactive_chat_")),
-                    ("点击与投喂 AI", claim_prefix("companion_")),
+                    ("AI 投喂反馈", claim_prefix("companion_")),
                     ("系统通知", claim("system_notifications_enabled")),
                     (
                         "视觉能力",

@@ -32,7 +32,8 @@ class Target:
             stamp = cfg.path.stat().st_mtime_ns
         except OSError:
             stamp = 0
-        values = [str(cfg.dir), cfg.get('character'), cfg.get('companion_interaction'), cfg.chat_settings().to_dict(), stamp]
+        from .expression_style import context
+        values = [str(cfg.dir), cfg.get('character'), cfg.get('companion_interaction'), cfg.chat_settings().to_dict(), stamp, context(cfg)]
         return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
     def valid(self):
@@ -42,9 +43,14 @@ class Target:
         shell = getattr(getattr(host, '_instance', None), 'shell', None) if self.sprite_ref else getattr(host, 'companion_shell', None)
         if getattr(shell, '_quitting', False) or getattr(shell, '_companion_suspended', False):
             return False
+        interpreter = (getattr(getattr(host, '_file_interpret_offer', None), '__self__', None)
+                       if self.sprite_ref else getattr(host, '_file_interpret', None))
+        if getattr(interpreter, '_state', None) in ('awaiting', 'running'):
+            return False  # Consent/progress owns presentation, including a child's follower.
         if self.sprite_ref:
             sprite = self.sprite_ref()
             return bool(sprite is not None and shiboken6.isValid(sprite)
+                        and shiboken6.isValid(host.overlay)
                         and sprite in host.overlay.sprites and host.overlay.isVisible()
                         and host._sprite_speech_visible(sprite) and not host._bubble_blocked(sprite)
                         and host._alert_current is None and not host._sticky_bubble_active)
@@ -156,6 +162,9 @@ class SpriteInteractionConfig:
             from ..chat.models import ChatSettings
             return ChatSettings.from_dict(slot['chat'])
         return self.view.chat_settings()
+
+    def resolve_api_key(self, provider):
+        return self.view.resolve_api_key(provider)
 
 
 def bind_overlay(overlay):

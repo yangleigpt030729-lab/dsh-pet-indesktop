@@ -1376,14 +1376,11 @@ class AppShell:
     def _self_talk_speak_wanted(self) -> bool:
         """点击自言自语朗读是否开启——它同样复用报时服务的音频通道。
 
-        只要求「点击触发自言自语」+ 本朗读开关：点击自言自语是独立开关，不与
-        「气泡自言自语」总开关（周期气泡）耦合，否则只想点击听声的用户永远拿不到
-        音频通道。避免给用不到的场景常驻一条音频通道。
+        普通点击或摸头 AI 任一需要朗读时保留原通道；读取实际目标配置。
+        周期气泡仍只显示文字，不强制开启普通点击。
         """
-        return bool(
-            self.config.get("self_talk_speak_enabled", False)
-            and self.config.get("click_show_self_talk", False)
-        )
+        from .companion.head_speech import wanted
+        return wanted(self)
 
     def _chime_wanted(self) -> bool:
         # 报时自身开启，或节日语音 / 点击自言自语朗读需要这条音频通道（三者共用
@@ -1415,7 +1412,7 @@ class AppShell:
         """对外暴露的音频通道（节日提醒语音复用报时服务的合成与播放）。"""
         return self._ensure_chime_service()
 
-    def self_talk_voice_file(self, text: str) -> Path | None:
+    def self_talk_voice_file(self, text: str, *, config=None) -> Path | None:
         """预缓存台词音频的查找路径；没有就返回 None。
 
         命名约定与产出脚本（F:\\dsh\\tts\\build_self_talk_voice.py）一致：
@@ -1423,7 +1420,7 @@ class AppShell:
         仓库 assets —— 它属于用户数据（换资源包/更新不该丢），与报时缓存
         voice_chime_cache 同级。
         """
-        directory = getattr(getattr(self, "config", None), "dir", None)
+        directory = getattr(config if config is not None else getattr(self, "config", None), "dir", None)
         if directory is None:
             return None
         name = hashlib.md5(str(text).strip().encode("utf-8")).hexdigest()[:16] + ".wav"
@@ -1437,7 +1434,7 @@ class AppShell:
             pass
         return None
 
-    def speak_self_talk(self, text: str = "") -> bool:
+    def speak_self_talk(self, text: str = "", *, valid=None, config=None) -> bool:
         """点击自言自语朗读：把同一句话送进报时服务的音频通道。
 
         优先播预缓存的本地文件（零延迟、断网可用）；没有缓存才回落到在线合成。
@@ -1450,7 +1447,7 @@ class AppShell:
         调用方照常展示，"看得见听不见"好过"点一下什么都不发生"。
         """
         stripped = str(text or "").strip()
-        if not stripped:
+        if not stripped or (valid is not None and not valid()):
             return False
         try:
             channel = self.ensure_audio_channel()
@@ -1459,10 +1456,11 @@ class AppShell:
             return False
         if channel is None:
             return False
-        cached = self.self_talk_voice_file(stripped)
+        cached = self.self_talk_voice_file(stripped, config=config) if config is not None else self.self_talk_voice_file(stripped)
         if cached is not None:
             try:
-                if channel.play_file(str(cached), log_tag="点击自言自语"):
+                options = {'valid': valid, 'config': config} if valid is not None else {}
+                if channel.play_file(str(cached), log_tag="点击自言自语", **options):
                     # 落一条日志：本地播报与"偷偷回落到在线合成"必须能分辨，
                     # 否则文件名对不上时只会表现为"声音怎么变了"却查不出原因。
                     logging.getLogger("dsh-pet-standalone").info(
@@ -1474,7 +1472,8 @@ class AppShell:
             # 运行中的通道配置由 _sync_chime_service 在保存时刷新；未运行才需补读。
             if not channel.is_running():
                 channel.apply_config()
-            channel.speak(stripped, log_tag="点击自言自语")
+            options = {'valid': valid, 'config': config} if valid is not None else {}
+            channel.speak(stripped, log_tag="点击自言自语", **options)
         except Exception:
             logging.exception("点击自言自语语音播报失败")
             return False

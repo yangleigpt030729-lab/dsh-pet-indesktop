@@ -18,6 +18,8 @@ from .memory_extract import sensitive
 from .proactive_repeat import text_key
 from .interaction_config import enabled
 from .memory_retrieve import tokens
+from .expression_style import context as style_context, message as style_message, fallback_choices
+from .head_speech import permission_stamp
 
 _LIVE = set()
 KIND_KEYS = {'head': 'head_touch_enabled', 'feeding': 'feeding_enabled'}
@@ -81,7 +83,8 @@ class InteractionService(QObject):
                                for k in CATEGORIES}, 'size_bucket': 'unknown'})
         if target.key not in self.pending_feeds and len(self.pending_feeds) >= 32:
             return
-        self.pending_feeds[target.key] = dict(target=target, metadata=meta, identity=target.identity(), expires=self.clock()+30)
+        self.pending_feeds[target.key] = dict(target=target, metadata=meta, identity=target.identity(),
+                                             expires=self.clock()+30, not_before=self.clock()+2)
         self.feed_timer.start(750)
 
     def _flush_feeding(self):
@@ -92,7 +95,8 @@ class InteractionService(QObject):
                     or not enabled(target.config(), 'feeding_enabled')):
                 self.pending_feeds.pop(key, None)
                 continue
-            if self.jobs or self.active or self.chat.busy or target.manual_busy() or now < self.cooldowns.get(('feeding', key), 0):
+            if (now < entry['not_before'] or self.jobs or self.active or self.chat.busy
+                    or target.manual_busy() or now < self.cooldowns.get(('feeding', key), 0)):
                 continue
             self.pending_feeds.pop(key, None)
             # Other targets awaiting their turn must not block this request.
@@ -145,7 +149,9 @@ class InteractionService(QObject):
         settings = cfg.chat_settings()
         character = str(cfg.get('character', ''))
         self.active = {'kind': kind, 'target': target, 'identity': target.identity(),
-                       'metadata': safe_metadata(metadata)}
+                       'metadata': safe_metadata(metadata), 'style': style_context(cfg),
+                       'consent': permission_stamp(cfg)}
+        style = self.active['style']
         self.rid = None
         self.timer.start()
         policy = MemoryContext.from_config(cfg, '')
@@ -161,7 +167,7 @@ class InteractionService(QObject):
             prompt = PromptBuilder(Path(__file__).resolve().parents[2]/'assets'/'characters').effective_system_prompt(settings, character)
             task = ('用户明确单击了头部核心，请用当前角色生成自然的开心、撒娇或害羞回应。' if kind == 'head' else
                     '用户刚投喂了文件。只按下面的安全类别统计作食物比喻，绝不假装看过图片、读过代码或听过音频。')
-            messages = [{'role': 'system', 'content': prompt}, {'role': 'system', 'content':
+            messages = [{'role': 'system', 'content': prompt}, style_message(style), {'role': 'system', 'content':
                 '内部交互事件，不是用户聊天，不提取为用户事实。只回复1至2句中文、最多80字，不调用工具或语音。'
                 +task+json.dumps({'interaction': kind, 'metadata': safe_metadata(metadata)}, ensure_ascii=False)}]
             return messages, provider, ReadOnlyMemory(policy, use_memory)
@@ -173,7 +179,9 @@ class InteractionService(QObject):
         if not r:
             return False
         t = r['target']
-        return t.valid() and not t.manual_busy() and t.identity() == r['identity'] and enabled(t.config(), KIND_KEYS[r['kind']])
+        return (t.valid() and not t.manual_busy() and t.identity() == r['identity']
+                and (r['kind'] != 'head' or permission_stamp(t.config()) == r['consent'])
+                and style_context(t.config()) == r['style'] and enabled(t.config(), KIND_KEYS[r['kind']]))
 
     def _prepared(self, result):
         if not self._current():
@@ -203,21 +211,29 @@ class InteractionService(QObject):
 
     def _present(self, text):
         if self._current() and self.active['target'].present(text):
+            target, kind = self.active['target'], self.active['kind']
+            identity, generation, expires = target.identity(), self.generation, self.clock()+30
+            consent = self.active['consent']
             self.recent.append(text_key(text))
-            self.delivered.emit(self.active['kind'], text)
+            self.delivered.emit(kind, text)
+            if kind == 'head':
+                from .head_speech import speech_enabled, speak_target
+                owner = weakref.ref(self)
+                def valid():
+                    service = owner()
+                    return bool(service is not None and shiboken6.isValid(service) and not service.closed and service.generation == generation
+                        and service.clock() < expires and target.valid() and target.identity() == identity
+                        and permission_stamp(target.config()) == consent
+                        and enabled(target.config(), 'head_touch_enabled') and speech_enabled(target.config()))
+                if hasattr(target, 'host_ref'):
+                    speak_target(target, text, valid)
         self.timer.stop()
         self.active = None
 
     def _fallback(self):
         if not self.active:
             return
-        choices = (['被你摸到啦，鱼鳍都开心地翘起来了。', '轻轻摸一下，本鱼的心情亮晶晶。', '谢谢你的温柔，本鱼在这里陪你。']
-                   if self.active['kind'] == 'head' else ['啊呜，这份数字点心收到了！文件好好地留在原地。', '谢谢投喂，本鱼嚼嚼数字零食，原文件一口也没动。'])
-        if self.active['kind'] == 'feeding':
-            categories = self.active['metadata']['categories']
-            names = {'python': '括号点心', 'image': '彩色糖果', 'audio': '节拍零食', 'archive': '硬面包', 'folder': '整盒便当'}
-            flavor = next((name for key, name in names.items() if categories.get(key)), '数字零食')
-            choices = [f'光凭类型就想到{flavor}，啊呜～原文件一口也没动。', f'谢谢这一份{flavor}，本鱼只吃想象，文件保持原样。']
+        choices = fallback_choices(self.active['style'], self.active['kind'], self.active['metadata'])
         choices = [t for t in choices if text_key(t) not in self.recent] or choices
         text = random.choice(choices)
         self._present(('合成测试：' if self.fake else '')+text)

@@ -16,6 +16,7 @@ def install_fake_chat():
     from pet.chat.models import SecretStore
     from pet.chat.service import ChatService
     from pet.companion.proactive_service import ProactiveService
+    from pet.voice_chime_service import VoiceChimeService, _TTSWorker
     if getattr(ChatService.__init__, '_acceptance_fake', False):
         return
     class FakeProvider:
@@ -24,19 +25,23 @@ def install_fake_chat():
             if cancel.is_set():
                 return
             text = str(messages)
+            maid = any(m.get('content', '').startswith('expression_style ')
+                       and '"mode": "whale_maid"' in m['content'] for m in messages)
+            def styled(value):
+                return value.replace('合成测试：', '合成测试：主人～') if maid else value
             if '"interaction": "head"' in text:
-                yield '合成测试：被你轻轻摸一下，本鱼的心情亮晶晶。'
+                yield styled('合成测试：被你轻轻摸一下，本鱼的心情亮晶晶。')
             elif '"interaction": "feeding"' in text:
                 flavor = ('括号点心' if '"python":' in text else '彩色糖果' if '"image":' in text
                           else '节拍零食' if '"audio":' in text else '硬面包' if '"archive":' in text
                           else '整盒便当' if '"folder":' in text else '数字零食')
-                yield f'合成测试：光凭类型就想到{flavor}，啊呜～原文件保持原样。'
+                yield styled(f'合成测试：光凭类型就想到{flavor}，啊呜～原文件保持原样。')
             elif '"topic": "drink"' in text:
-                yield '合成测试：本鱼提醒你喝点水。'
+                yield styled('合成测试：本鱼提醒你喝点水。')
             elif '"topic": "break"' in text:
-                yield '合成测试：起来活动一下吧，本鱼陪你。'
+                yield styled('合成测试：起来活动一下吧，本鱼陪你。')
             else:
-                yield '合成测试：今天也慢慢来，本鱼在这里陪你。'
+                yield styled('合成测试：今天也慢慢来，本鱼在这里陪你。')
     original = ChatService.__init__
     def initialize(self, provider=None, *args, **kwargs):
         original(self, provider if isinstance(provider, FakeProvider) else FakeProvider(), *args, **kwargs)
@@ -53,6 +58,18 @@ def install_fake_chat():
     def offline(*a, **k):
         raise OSError('Fake acceptance mode disables urllib network requests')
     urllib.request.urlopen = offline
+    def fake_fire(channel, sentence, *args, valid=None, **kwargs):
+        if valid is not None and not valid():
+            return
+        recent = getattr(channel, '_acceptance_speech', [])
+        channel._acceptance_speech = [*recent[-11:], str(sentence)]
+        print('FAKE: synthetic speech requested; real audio NOT TESTED', flush=True)
+    VoiceChimeService._fire = fake_fire
+    def fake_play(channel, path, *, valid=None, **kwargs):
+        return valid is None or valid()  # No player or native device is started.
+    VoiceChimeService._play_only = fake_play
+    # Scheduled precaching bypasses _fire; also keep that original path offline.
+    _TTSWorker.start = lambda worker: worker._on_done(str(worker._out_path), worker._text, 'Fake不进行真实语音合成')
 
 
 def configure(data_dir):

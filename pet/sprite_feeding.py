@@ -70,21 +70,31 @@ class SpriteFeedingController:
         self._feed_worker.deleteLater()
 
     def _feed_complete(self, result, paths, context):
+        import shiboken6
         sprite_ref, library_id = context
         sprite = sprite_ref()
         self.last_result = result
-        if sprite is None or sprite not in self._overlay.sprites:
+        if sprite is None or not shiboken6.isValid(sprite) or sprite not in self._overlay.sprites:
             return
         if id(sprite.library) != library_id:
             return
-        if sprite is self._sprite:
-            self._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
-        elif callable(self.target_feedback):
-            self.target_feedback(sprite, result['files'], result['folders'], result['bytes'], result['stats'])
-        if callable(self.interpret_offer):
-            self.interpret_offer(paths)
-        if callable(self.ai_feedback) and result['files']+result['folders']:
-            self.ai_feedback(sprite, result['metadata'])
+        from .feed_presentation import offer, OverlayInterpretTarget
+        def resume():
+            if (self._feed_worker.cancel.is_set() or not shiboken6.isValid(sprite)
+                    or sprite not in self._overlay.sprites or id(sprite.library) != library_id):
+                return
+            if sprite is self._sprite:
+                self._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
+            elif callable(self.target_feedback):
+                self.target_feedback(sprite, result['files'], result['folders'], result['bytes'], result['stats'])
+            if callable(self.ai_feedback) and result['files']+result['folders']:
+                self.ai_feedback(sprite, result['metadata'])
+        # The injected callback owns the existing controller; supply only a
+        # lightweight target adapter, never another interpretation service.
+        shell = getattr(getattr(self.interpret_offer, '__self__', None), '_win', None)
+        target = OverlayInterpretTarget(shell, sprite) if shell is not None else None
+        if not offer(self.interpret_offer, paths, resume, target=target):
+            resume()
 
     # ---------------------------------------------------------------- 拖放判定
     def accepts(self, event) -> bool:

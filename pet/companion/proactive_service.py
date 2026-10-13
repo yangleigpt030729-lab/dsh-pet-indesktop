@@ -25,6 +25,7 @@ from .proactive_context import ReadOnlyMemory
 from .proactive_repeat import classify, repeats, provider_history_summary
 from .proactive_schedule import Scheduler
 from .proactive_state import ProactiveState
+from .expression_style import context as style_context, message as style_message
 
 _LIVE = set()  # Pin canceled/uninterruptible QThreads until they finish.
 
@@ -83,7 +84,7 @@ class ProactiveService(QObject):
             stamp = self.config.path.stat().st_mtime_ns
         except OSError:
             stamp = 0
-        identity = hashlib.sha256(json.dumps([cfg, settings.to_dict(), character, stamp, generation], sort_keys=True).encode()).hexdigest()
+        identity = hashlib.sha256(json.dumps([cfg, settings.to_dict(), character, stamp, generation, style_context(self.config)], sort_keys=True).encode()).hexdigest()
         return cfg, settings, character, identity
 
     def _status(self, text):
@@ -148,6 +149,7 @@ class ProactiveService(QObject):
             return
         policy = MemoryContext.from_config(self.config, '')
         provider = replace(settings.active_config, max_tokens=96, timeout=min(20, settings.active_config.timeout))
+        style = style_context(self.config)
         def preflight():
             if not provider.api_key and not self.fake:
                 provider.api_key = SecretStore().get(provider.api_key_ref)
@@ -160,7 +162,7 @@ class ProactiveService(QObject):
                     recent = self.state.recent()
                     builder = PromptBuilder(Path(__file__).resolve().parents[2]/'assets'/'characters')
                     role = builder.effective_system_prompt(settings, character)
-                    messages = [{'role': 'system', 'content': role}, {'role': 'system', 'content':
+                    messages = [{'role': 'system', 'content': role}, style_message(style), {'role': 'system', 'content':
                         '内部主动陪伴任务，不是用户发言。保持当前角色，温柔自然、稍俏皮。仅输出1至2句话，最多80字。'
                         '不要推测用户事实，不宣称监视用户，不创建日程，不要求回答。根据时段与主题动态写新话，不重复最近内容。'
                         +json.dumps({'local_time': now.strftime('%Y-%m-%d %H:%M'), 'topic': candidate.category,

@@ -152,12 +152,20 @@ class FileEaterDropHandler(QObject):
         return True
 
     def _feed_complete(self, result, paths, _context):
-        self._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
+        import weakref
+        ref = weakref.ref(self)
+        def resume():
+            import shiboken6
+            owner = ref()
+            if owner is None or not shiboken6.isValid(owner) or owner._feed_worker.cancel.is_set():
+                return
+            owner._show_feedback(result['files'], result['folders'], result['bytes'], result['stats'])
+            if callable(owner.ai_feedback) and result['files']+result['folders']:
+                owner.ai_feedback(result['metadata'])
         offer = getattr(self, 'interpret_offer', None)
-        if callable(offer):
-            offer(paths)
-        if callable(self.ai_feedback) and result['files']+result['folders']:
-            self.ai_feedback(result['metadata'])
+        from .feed_presentation import offer as offer_reading
+        if not offer_reading(offer, paths, resume):
+            resume()
 
     # ------------------------------------------------------------ 事件
     def _local_paths(self, mime) -> list[str]:

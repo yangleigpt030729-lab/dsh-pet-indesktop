@@ -496,7 +496,7 @@ def self_talk_speak_enabled(host) -> bool:
         return False
 
 
-def speak_click_self_talk(host, text: str) -> None:
+def speak_click_self_talk(host, text: str, *, valid=None, config=None) -> None:
     """把点击自言自语**实际显示的那句话**交给语音通道读出来。
 
     刻意复用语音报时服务的音频通道（窗口的 ``on_self_talk_speak`` 由 app 接线到
@@ -506,13 +506,15 @@ def speak_click_self_talk(host, text: str) -> None:
     通道缺失、开关关闭或播报失败都只降级为「有气泡没声音」，绝不影响点击本身。
     """
     stripped = str(text or "").strip()
-    if not stripped or not self_talk_speak_enabled(host):
+    from .companion.head_speech import speech_enabled
+    allowed = speech_enabled(config) if config is not None else self_talk_speak_enabled(host)
+    if not stripped or not allowed or (valid is not None and not valid()):
         return
     speaker = getattr(host, "on_self_talk_speak", None)
     if not callable(speaker):
         return
     try:
-        speaker(stripped)
+        speaker(stripped, valid=valid, config=config) if valid is not None else speaker(stripped)
     except Exception:
         logging.getLogger("dsh-pet-standalone").exception("点击自言自语语音播报失败")
 

@@ -136,6 +136,8 @@
 
 ## PR 报告存档
 
+- [PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md](PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md)：表达风格Prompt适配、摸头归入互动、原共享点击朗读与投喂/文本解读气泡协调；复测本轮Windows增量前必读。
+
 - [PR-REPORT-COMPANION-COMPLETE-2026-10-13.md](PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)：P2-C可靠待办、可配置频控、P3/P4瞬时互动、P5整合/迁移/安全打包流程与最终集中验收；更新完整陪伴分支前必读。
 
 - [PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)：Win10实测的右键设置与默认Fake主动气泡断点修补、红绿测试和Python3.12/UTF-8复测；更新验收源码前必读。

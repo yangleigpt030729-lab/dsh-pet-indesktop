@@ -195,7 +195,7 @@ def test_offer_disabled_is_ignored(tmp_path):
     assert win.alerts == []
 
 
-def test_offer_without_interpretable_files_only_hints(tmp_path):
+def test_offer_without_interpretable_files_is_silent_feeding(tmp_path):
     _qapp()
     win = _FakeWin(tmp_path)
     controller = FileInterpretController(win)
@@ -205,7 +205,7 @@ def test_offer_without_interpretable_files_only_hints(tmp_path):
     controller.offer([str(blob)])
 
     assert win.alerts == []
-    assert any("读不了" in b for b in win.bubbles)
+    assert win.bubbles == []
 
 
 def test_decline_resolves_alert_without_request(tmp_path):

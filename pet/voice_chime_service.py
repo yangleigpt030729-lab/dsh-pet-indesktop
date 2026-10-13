@@ -306,6 +306,9 @@ class VoiceChimeService:
         # 外部播报（节日提醒）经 speak() 复用本服务的音频通道：通道忙时进深度 1
         # 待播队列，当前一段播完再播——不打断、不叠音。None 表示无待播。
         self._pending_speech: str | None = None
+        self._pending_speech_options = {}
+        self._speech_guard = None
+        self._speech_config = None
         # 媒体终止态枚举；_ensure_player 成功时填充，未创建播放器时为空元组。
         self._terminal_statuses: tuple = ()
         # 让位钩子：由 AppShell 注入 Callable[[str], bool]，入参是本分钟的报时槽位，
@@ -332,6 +335,7 @@ class VoiceChimeService:
         self._stopped = True
         # 待播队列同样作废：关掉开关/退出后不该再补播一条排队的语音。
         self._pending_speech = None
+        self._pending_speech_options = {}
         self._queued_fire = None
         self._timer.stop()
 
@@ -372,7 +376,7 @@ class VoiceChimeService:
             return
         self._fire(build_chime_sentence(now, self._cfg), now, build_bubble_sentence(now, self._cfg))
 
-    def speak(self, text: str, *, log_tag: str = "外部播报") -> bool:
+    def speak(self, text: str, *, log_tag: str = "外部播报", valid=None, config=None) -> bool:
         """向本服务（进程内唯一的音频通道）提交一段**纯语音**播报，不含气泡。
 
         供节日提醒等功能复用：合成、缓存、播放与报时**共用同一套**，因此结构上
@@ -388,16 +392,18 @@ class VoiceChimeService:
         气泡照常）。
         """
         stripped = (text or "").strip()
-        if not stripped:
+        if not stripped or (valid is not None and not valid()):
             return False
         if self._busy or self._player_busy():
             self._pending_speech = stripped
+            self._pending_speech_options = {'valid': valid, 'config': config} if valid is not None else {}
             logger.info("%s：音频通道忙，已排队待播", log_tag)
             return True
-        self._fire(stripped, datetime.now(), None, show_bubble=False, role="speak")
+        options = {'valid': valid, 'config': config} if valid is not None else {}
+        self._fire(stripped, datetime.now(), None, show_bubble=False, role="speak", **options)
         return True
 
-    def play_file(self, path: str, *, log_tag: str = "本地语音") -> bool:
+    def play_file(self, path: str, *, log_tag: str = "本地语音", valid=None, config=None) -> bool:
         """直接播放一个**本地音频文件**（预缓存台词走这条路：零延迟、不联网）。
 
         与 ``speak()`` 共用同一个播放器（进程内唯一音频通道），所以同样不会与
@@ -405,13 +411,16 @@ class VoiceChimeService:
         了，晚几秒才冒出来反而突兀——通道忙就直接放弃这次出声（返回 False），
         由调用方决定是否回退到在线合成。
         """
+        if valid is not None and not valid():
+            return False
         target = Path(path)
         if not target.is_file():
             return False
         if self._busy or self._player_busy():
             logger.info("%s：音频通道忙，本次本地播报跳过：%s", log_tag, target.name)
             return False
-        return self._play_only(str(target))
+        options = {'valid': valid, 'config': normalize_chime_config(config)} if valid is not None else {}
+        return self._play_only(str(target), **options)
 
     # ------------------------------------------------------------ 调度
     def _on_tick(self, now: datetime | None = None) -> None:
@@ -531,7 +540,7 @@ class VoiceChimeService:
         return None
 
     def _fire(self, sentence: str, now: datetime, bubble_text: str | None = None,
-              *, show_bubble: bool = True, role: str = "play") -> None:
+              *, show_bubble: bool = True, role: str = "play", valid=None, config=None) -> None:
         """播报一次。
 
         语音用口播文本 ``sentence``（同时作为合成输入与缓存键）；气泡用
@@ -540,19 +549,28 @@ class VoiceChimeService:
         ``show_bubble=False`` / ``role="speak"`` 是给外部播报（节日提醒）用的：
         只出声、不出气泡（气泡由调用方自己管），合成完成回调据此走 ``_play_only``。
         """
+        if valid is not None and not valid():
+            return
+        cfg = normalize_chime_config(config) if config is not None else self._cfg
         if not _EDGE_TTS_AVAILABLE:
-            self._notify_missing_tts()
+            if valid is None:
+                self._notify_missing_tts()
+            else:
+                logger.warning('摸头文字保留；edge-tts 不可用，仅跳过朗读')
             return
         bubble = bubble_text if bubble_text is not None else build_bubble_sentence(now, self._cfg)
-        voice, note = resolve_voice(self._cfg["voice"])
+        voice, note = resolve_voice(cfg["voice"])
         if note:
-            self._announce_voice_substitution(note)
+            if valid is None:
+                self._announce_voice_substitution(note)
+            else:
+                logger.warning(note)
         key = cache_key(
             sentence,
             {
                 "voice": voice,
-                "rate": self._cfg["rate"],
-                "pitch": self._cfg["pitch"],
+                "rate": cfg["rate"],
+                "pitch": cfg["pitch"],
             },
         )
         self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -564,18 +582,23 @@ class VoiceChimeService:
             if show_bubble:
                 self._play_and_bubble(str(out_path), sentence, bubble)
             else:
-                self._play_only(str(out_path))
+                options = {'valid': valid, 'config': cfg} if valid is not None else {}
+                self._play_only(str(out_path), **options)
             return
         if self._busy:
             # 合成在飞（多为本次报时的预合成）：排队待补，不得直接丢弃——
             # 到点回退即时合成正经此路径（_on_tick 在预合成未完成时调 _fire，
             # 被 busy 门挡死曾导致到点静默丢报时且 _last_slot 已盖戳不再重试）。
             self._queued_fire = (sentence, now, bubble_text, show_bubble, role)
+            if valid is not None:
+                self._queued_fire += (valid, config)
             logger.info("语音报时合成在飞，排队待补：%s", sentence[:20])
             return
         self._busy = True
         self._busy_since = time.monotonic()
         self._synthesis_role = role
+        self._speech_guard = valid
+        self._speech_config = cfg if valid is not None else None
         self._pending_bubble = bubble if show_bubble else None
         # 本次合成有效：清掉上一次 stop() 留下的作废标记，
         # 否则新起的合成结果会被当成"迟到结果"丢弃。
@@ -586,8 +609,8 @@ class VoiceChimeService:
         worker = _TTSWorker(
             sentence,
             voice,
-            edge_rate_arg(self._cfg["rate"]),
-            edge_pitch_arg(self._cfg["pitch"]),
+            edge_rate_arg(cfg["rate"]),
+            edge_pitch_arg(cfg["pitch"]),
             out_path,
             self._bridge.on_synthesized,
         )
@@ -601,6 +624,7 @@ class VoiceChimeService:
         try:
             self._handle_synthesized(role, path, text, error)
         finally:
+            self._speech_guard = self._speech_config = None
             # 任何结局（完成/失败/已停止）都必须结算排队项：_stopped 时
             # _drain 内部丢弃，其余情况补播——不能让到点报时静默消失。
             self._drain_queued_fire()
@@ -612,16 +636,23 @@ class VoiceChimeService:
         self._queued_fire = None
         if queued is None or self._stopped:
             return
-        sentence, now, bubble_text, show_bubble, role = queued
-        self._fire(sentence, now, bubble_text, show_bubble=show_bubble, role=role)
+        sentence, now, bubble_text, show_bubble, role, *extra = queued
+        options = {'valid': extra[0], 'config': extra[1]} if extra else {}
+        self._fire(sentence, now, bubble_text, show_bubble=show_bubble, role=role, **options)
 
     def _handle_synthesized(self, role: str, path: str, text: str, error: str) -> None:
+        valid = getattr(self, '_speech_guard', None)
+        if valid is not None and not valid():
+            return
         if self._stopped:
             # stop()（关闭开关 / 应用退出）之后才回来的结果：不再回放/气泡——
             # 否则「关掉语音报时之后又响一声」，退出路径上还可能触碰正在析构的窗口。
             logger.info("语音报时已停止，丢弃迟到的合成结果：%s", Path(path).name)
             return
         if error:
+            if valid is not None:
+                logger.warning('摸头文字保留；朗读合成失败：%s', error)
+                return
             if error == EDGE_TTS_MISSING:
                 # 运行期才发现 edge-tts 缺失（顶层只做 find_spec 探测）：清掉可能
                 # 残留的预合成占位，再走既有缺依赖降级文案。
@@ -650,7 +681,8 @@ class VoiceChimeService:
             return
         if role == "speak":
             # 外部播报（节日提醒）：只出声，气泡由调用方自己展示。
-            self._play_only(path)
+            options = {'valid': valid, 'config': self._speech_config} if valid is not None else {}
+            self._play_only(path, **options)
             return
         self._play_and_bubble(path, text, self._pending_bubble)
 
@@ -675,19 +707,21 @@ class VoiceChimeService:
             return
         self._bubble(bubble_text if bubble_text is not None else text)
 
-    def _play_only(self, path: str) -> bool:
+    def _play_only(self, path: str, *, valid=None, config=None) -> bool:
         """只播放音频、不展示气泡（外部播报用，气泡由调用方自己管）。
 
         返回是否成功起播；失败只记日志——外部的气泡/提示由调用方决定，
         这里再插一条报时风格的气泡会与对方的展示重复。
         """
+        if valid is not None and not valid():
+            return False
         if not self._ensure_player():
             logger.warning("播放器不可用，外部播报跳过播放：%s", Path(path).name)
             return False
         try:
             from PySide6.QtCore import QUrl
 
-            self._audio_out.setVolume(self._cfg["volume"] / 100.0)
+            self._audio_out.setVolume((config if config is not None else self._cfg)["volume"] / 100.0)
             self._player.setSource(QUrl.fromLocalFile(path))
             self._player.play()
             return True
@@ -718,10 +752,12 @@ class VoiceChimeService:
         if status not in getattr(self, "_terminal_statuses", ()):
             return
         pending = self._pending_speech
+        options = getattr(self, '_pending_speech_options', {})
         self._pending_speech = None
+        self._pending_speech_options = {}
         if not pending or self._stopped:
             return
-        self._fire(pending, datetime.now(), None, show_bubble=False, role="speak")
+        self._fire(pending, datetime.now(), None, show_bubble=False, role="speak", **options)
 
     def _ensure_player(self) -> bool:
         if self._player is not None:

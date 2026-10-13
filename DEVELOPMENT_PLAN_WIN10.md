@@ -1,5 +1,9 @@
 # DeepSeek 大肥鱼 AI 陪伴增强版 — Codex / Work 开发任务书
 
+## 2026-10-13 本轮增量（最新指令）
+
+在既有完成分支上修补表达风格、唯一摸头设置归属、共享点击朗读及投喂/内容解读气泡冲突；本轮不重新开发P2-C～P5，不修改动画/WebM，不合并main。用户确认Fake问候、摸头气泡、身体动画已在Windows10/Python3.12运行，保留这些实测事实。新增风格/共享朗读/文件授权协调仍等待集中Windows复验；真实DeepSeek、Edge声音及Windows新EXE未验收。三种增强复用角色Prompt/ChatService；仅明确开启共享朗读的已展示摸头文本进入原VoiceChimeService，问候/投喂仍无TTS。自定义台词没有云端风格授权，中性安全退化。文本确认前不读取内容；仅投喂无“读不了”提示；接受解读不插入趣味回复。交付与真实测试见[增量报告](docs/PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md)，最小复测见[Windows指南§8](docs/WINDOWS10-COMPANION-ACCEPTANCE.md#8-本轮最小复测表达风格摸头与投喂)。
+
 ## 2026-10-13 用户确认的最终范围（优先于下方原候选方案）
 
 本轮授权连续完成 P2-C、频控范围、P3、P4、P5，最后统一 Windows 验收。最终实现复用原 TodoStore/面板（JSON v2可靠投递），不建第二待办库/自然语言日程；普通主动范围1～9999条/天、1～99分钟，默认10/30；旧0或>99保留原数并停用等待明确确认。头部单击采用可见核心、模糊处身体优先，无长按或抚摸；身体点击和拖拽保留。P3/P4复用ChatService独立瞬时通路，不串写手动会话/记忆，默认关闭；投喂只stat类别/大小统计，原解读独立授权。所有设置在原ModernSettingsDialog中唯一归属；主动识屏活动记录清除不涉及长期SQLite。Windows干净Chat onedir流程已准备，原生EXE NOT BUILT、真实DeepSeek NOT TESTED。详细真实验证见[完整交付报告](docs/PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)与[最终验收指南](docs/WINDOWS10-COMPANION-ACCEPTANCE.md)。下方早期候选架构/头部优先/原固定上限按本节修正，不再代表当前授权或实现。

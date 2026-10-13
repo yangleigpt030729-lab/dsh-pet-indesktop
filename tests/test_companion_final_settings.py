@@ -80,7 +80,7 @@ def test_interaction_rows_belong_to_existing_ai_domain(tmp_path):
     app = QApplication.instance() or QApplication([])
     dialog = ModernSettingsDialog(Config(base=tmp_path), include_ai=True)
     try:
-        for setting in ('companion_head_touch_enabled', 'companion_feeding_enabled'):
+        for setting in ('companion_feeding_enabled',):
             row = dialog.findChild(SettingRow, 'settingRow_'+setting)
             assert row is not None
             parent = row.parentWidget()

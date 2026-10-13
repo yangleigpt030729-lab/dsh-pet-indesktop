@@ -148,7 +148,7 @@ def capture(args: argparse.Namespace) -> None:
             dialog.select_page('AI 与对话')
             page = dialog.pages.currentWidget()
             scroll = page.findChild(QScrollArea, 'settingsScroll')
-            for key in ('proactive_chat_enabled', 'companion_head_touch_enabled', 'companion_feeding_enabled'):
+            for key in ('proactive_chat_enabled', 'companion_feeding_enabled'):
                 row = dialog.findChild(SettingRow, 'settingRow_'+key)
                 if row is None or scroll is None:
                     raise RuntimeError(f'companion row unavailable: {key}')
@@ -157,6 +157,17 @@ def capture(args: argparse.Namespace) -> None:
                 target = destination / f'08-AI-{key}.png'
                 if not dialog.grab().save(str(target)):
                     raise RuntimeError(f'failed to save screenshot: {target}')
+            dialog.select_page('摸头 AI')
+            dialog.companion_head_touch_check.setChecked(True)
+            dialog.click_self_talk_check.setChecked(False)
+            app.processEvents()
+            page = dialog.pages.currentWidget()
+            scroll = page.findChild(QScrollArea, 'settingsScroll') or page.findChild(QScrollArea)
+            row = dialog.findChild(SettingRow, 'settingRow_click_self_talk_speak')
+            scroll.ensureWidgetVisible(row, 0, 24)
+            app.processEvents()
+            if not dialog.grab().save(str(destination/'02-互动-摸头与共享朗读.png')):
+                raise RuntimeError('failed to capture head and shared click speech')
         if args.menu_details:
             menu_index = next(
                 index

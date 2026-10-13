@@ -4,6 +4,13 @@ from .settings_widgets import SettingRow
 
 
 def select_target(dialog, target):
+    if target in ('摸头 AI', '点击与音效'):
+        from .settings_widgets import SettingsTabContainer
+        dialog.select_page('互动')
+        tabs = dialog.pages.currentWidget().findChild(SettingsTabContainer)
+        if tabs is not None:
+            tabs.setCurrentKey('click')
+        return True
     if target != '主动识屏':
         return False
     dialog.select_page('自动化与联动')

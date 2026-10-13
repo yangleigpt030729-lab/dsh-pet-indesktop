@@ -63,11 +63,11 @@ def build_click_rows(dialog) -> list[SettingRow]:
         )
     rows.extend(
         [
-            SettingRow("click_self_talk", "点击触发自言自语", "点击时随机显示一条自言自语内容；打开后可用下方两项把同一句读出来。", dialog.click_self_talk_check),
+            SettingRow("click_self_talk", "点击触发自言自语", "普通点击时随机显示一条自言自语内容；与摸头 AI 独立开关。", dialog.click_self_talk_check),
             SettingRow(
                 "click_self_talk_speak",
                 "点击台词朗读",
-                "点击触发自言自语时，用语音报时的音色把这句话读出来（与报时共用音频通道，不会叠音）。",
+                "开启后朗读点击自言自语及摸头 AI 的已展示文字；复用语音报时通道。动态回复未命中缓存时使用原在线合成。",
                 dialog.click_self_talk_speak_check,
             ),
             SettingRow(
@@ -94,6 +94,13 @@ def build_click_rows(dialog) -> list[SettingRow]:
             ),
         ]
     )
+    if dialog.ai_page is not None:
+        from .companion.interaction_settings import setting_row
+        row, control = setting_row(dialog.config, 'head_touch_enabled',
+            lambda _: dialog._update_click_self_talk_controls(dialog.click_self_talk_check.isChecked()))
+        dialog.companion_head_touch_check = control
+        index = next(i for i, row in enumerate(rows) if row.objectName() == 'settingRow_click_self_talk_speak')
+        rows.insert(index, row)
     return rows
 
 

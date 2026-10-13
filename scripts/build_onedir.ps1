@@ -234,6 +234,7 @@ if (-not $SkipBuild) {
         --add-data $datas `
         --add-data "assets\big_blue_fat_fish;assets\big_blue_fat_fish" `
         --add-data "pet\persona_presets;pet\persona_presets" `
+        --add-data "pet\companion\expression_styles.json;pet\companion" `
         --add-data "pet\menu_templates;pet\menu_templates" `
         @chatData `
         --add-data "assets\sounds;assets\sounds" `

@@ -74,6 +74,7 @@ for variant in "${variant_list[@]}"; do
         --add-data "assets/big_blue_fat_fish:assets/big_blue_fat_fish"
         --add-data "pet/menu_templates:pet/menu_templates"
         --add-data "pet/persona_presets:pet/persona_presets"
+        --add-data "pet/companion/expression_styles.json:pet/companion"
         --add-data "integrations:integrations"
     )
     # 设置页样式表：已在 modern_settings_dialog.py 内联（_settings_stylesheet）

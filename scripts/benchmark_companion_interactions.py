@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QApplication
 from pet.companion.feeding_metadata import describe
 from pet.companion.touch_region import head_core_at
 from pet.companion.interaction_service import InteractionService
+from pet.companion.expression_style import context, message
+from pet.companion.head_speech import permission_stamp
 from pet.config import Config
 from scripts.run_companion_acceptance import install_fake_chat
 
@@ -32,6 +34,14 @@ def main():
         cfg = Config(base=Path(directory))
         cfg.set('companion_interaction', {'head_touch_enabled': True})
         cfg.save()
+        start = time.perf_counter()
+        for _ in range(20000):
+            message(context(cfg))
+        style_us = (time.perf_counter()-start)*1e6/20000
+        start = time.perf_counter()
+        for _ in range(20000):
+            permission_stamp(cfg)
+        permission_us = (time.perf_counter()-start)*1e6/20000
         class Target:
             key = 'synthetic'
             def config(self):
@@ -86,6 +96,7 @@ def main():
         large_ms = (time.perf_counter()-start)*1000
         assert large['partial'] and not list(cfg.dir.glob('*.sqlite3'))
         print(json.dumps(dict(head_core_n=20000, head_core_us=core_us,
+            style_n=20000, style_context_message_us=style_us, permission_n=20000, permission_stamp_us=permission_us,
             stat_file_n=200, stat_file_median_ms=statistics.median(stats), stat_file_max_ms=max(stats),
             directory_entries=5001, directory_ms=large_ms, directory_partial=large['partial'],
             burst_n=1000, burst_accepted=accepted, burst_ms=burst_ms,

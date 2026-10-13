@@ -42,11 +42,13 @@ def installed_fake(monkeypatch):
     from pet.chat.models import SecretStore
     from pet.chat.service import ChatService
     from pet.companion.proactive_service import ProactiveService
+    from pet.voice_chime_service import VoiceChimeService, _TTSWorker
     from scripts.run_companion_acceptance import install_fake_chat
     # Restore the process-only launcher modifications after this test.
     for owner, name in [(ChatService, '__init__'), (ProactiveService, '__init__'),
                         (SecretStore, 'get'), (SecretStore, 'set'),
-                        (providers, 'test_connection'), (urllib.request, 'urlopen')]:
+                        (providers, 'test_connection'), (urllib.request, 'urlopen'),
+                        (VoiceChimeService, '_fire'), (VoiceChimeService, '_play_only'), (_TTSWorker, 'start')]:
         monkeypatch.setattr(owner, name, getattr(owner, name))
     install_fake_chat()
     return install_fake_chat

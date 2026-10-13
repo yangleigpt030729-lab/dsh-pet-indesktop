@@ -203,7 +203,7 @@ class _AiSettingsPage(QWidget):
         self.proactive_settings = ProactiveSettings(config, self)
         root.addWidget(self.proactive_settings)
         from ..companion.interaction_settings import InteractionSettings
-        self.interaction_settings = InteractionSettings(config, self)
+        self.interaction_settings = InteractionSettings(config, self, keys=('feeding_enabled',))
         root.addWidget(self.interaction_settings)
         root.addWidget(SettingsSection("系统通知", [
             SettingRow(

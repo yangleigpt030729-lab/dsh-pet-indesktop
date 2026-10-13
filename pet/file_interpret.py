@@ -150,11 +150,15 @@ class FileInterpretController(QObject):
     def __init__(self, win, *, service_factory=None, store_factory=None, prompt_builder=None):
         super().__init__(win)
         self._win = win
+        self._target = win
+        self._declined = None
+        self._offer_generation = 0
         self._service_factory = service_factory
         self._store_factory = store_factory
         self._prompt_builder = prompt_builder
         self._service: Any = None
         self._store: Any = None
+        self._store_identity = None
         self._state = "idle"  # idle / awaiting（确认气泡挂起）/ running（请求中）
         self._pending: list[Path] = []
         self._request_id: str | None = None
@@ -166,40 +170,63 @@ class FileInterpretController(QObject):
         self._heartbeat.timeout.connect(self._on_heartbeat)
 
     # ---------------------------------------------------------- offer 接缝
-    def offer(self, paths: Any) -> None:
+    def offer(self, paths: Any, *, on_decline=None, target=None) -> bool:
         """file_eater 吃完后的解读询问入口（由 install_file_interpreter 注入接线）。"""
-        if not _interpret_enabled(self._win.cfg):
-            return
-        if self._state == "running":
-            self._bubble("正在解读上一个文件，先等等它～")
-            return
+        host = target if target is not None else self._win
+        if not _interpret_enabled(host.cfg):
+            return False
         eligible = collect_interpretable(paths)
         if not eligible:
-            self._bubble("这些文件我读不了：目前只认文本类文件哦")
-            return
+            return False  # Unsupported reading is never a failed feeding event.
+        if self._state == "running":
+            self._bubble("正在解读上一个文件，先等等它～")
+            return True
+        if self._state == 'awaiting':
+            self._target.resolve_alert(CONFIRM_ALERT_ID)
+        self._target = host
+        self._declined = on_decline
+        self._offer_generation += 1
+        generation = self._offer_generation
         self._pending = eligible
         self._state = "awaiting"
         names = "、".join(p.name for p in eligible[:3])
         if len(eligible) > 3:
             names += "…"
-        self._win.show_alert(
+        shown = host.show_alert(
             f"要解读刚吃掉的 {names} 吗？",
-            subtitle="内容将发送给当前配置的 AI 模型进行解读；文件本身不会被修改或上传",
+            subtitle="仅在确认后读取这些文本，并将文件名与内容发送给当前 AI 模型；原文件保持不动。不确认只投喂。",
             sticky=True,
-            buttons=[("解读", self._on_confirm), ("不用了", self._on_decline)],
+            buttons=[("解读", lambda: self._on_confirm() if generation == self._offer_generation else None),
+                     ("不用了", lambda: self._on_decline() if generation == self._offer_generation else None)],
             alert_id=CONFIRM_ALERT_ID,
             priority=1,
             alert_type="file_interpret",
         )
+        if shown is False:
+            self._state, self._pending, self._declined = 'idle', [], None
+            return False
+        return True
 
     def _on_confirm(self) -> None:
-        self._win.resolve_alert(CONFIRM_ALERT_ID)
+        if self._state != 'awaiting':
+            return
+        self._target.resolve_alert(CONFIRM_ALERT_ID)
+        self._declined = None
+        if ((callable(getattr(self._target, 'valid', None)) and not self._target.valid())
+                or not _interpret_enabled(self._target.cfg)):
+            self._state, self._pending = 'idle', []
+            return
         self._start(list(self._pending))
 
     def _on_decline(self) -> None:
-        self._win.resolve_alert(CONFIRM_ALERT_ID)
+        if self._state != 'awaiting':
+            return
+        self._target.resolve_alert(CONFIRM_ALERT_ID)
         self._state = "idle"
         self._pending = []
+        callback, self._declined = self._declined, None
+        if callback:
+            callback()
 
     # ---------------------------------------------------------- 主链路
     def _start(self, paths: list[Path]) -> None:
@@ -214,14 +241,8 @@ class FileInterpretController(QObject):
             self._bubble("这个版本没有 AI 对话模块，解读不可用")
             return
 
-        settings = self._win.cfg.chat_settings()
+        settings = self._target.cfg.chat_settings()
         provider = copy.copy(settings.active_config)
-        provider.api_key = self._win.cfg.resolve_api_key(provider)
-        if not str(provider.api_key or "").strip():
-            self._state = "idle"
-            self._bubble("还没配置 AI 模型的 API Key，先到设置里配好吧")
-            return
-
         if self._service is None:
             # 工厂无参调用 + setParent：与测试替身（无 kwargs 构造）和真
             # ChatService(parent=None) 都兼容，生命周期仍随窗口销毁。
@@ -232,16 +253,24 @@ class FileInterpretController(QObject):
             self._service.finished.connect(self._on_finished)
             self._service.error.connect(self._on_error)
             self._service.stopped.connect(self._on_stopped)
-        if self._store is None:
+        fake = getattr(getattr(self._service, 'provider', None), 'synthetic_acceptance', False)
+        provider.api_key = '' if fake else self._target.cfg.resolve_api_key(provider)
+        if not fake and not str(provider.api_key or "").strip():
+            self._state = "idle"
+            self._bubble("还没配置 AI 模型的 API Key，先到设置里配好吧")
+            return
+        store_identity = (str(self._target.cfg.dir), getattr(self._target.cfg, 'instance_id', ''))
+        if self._store is None or self._store_identity != store_identity:
             self._store = (self._store_factory or SessionStore)(
-                self._win.cfg.dir, getattr(self._win.cfg, "instance_id", "")
+                self._target.cfg.dir, getattr(self._target.cfg, "instance_id", "")
             )
+            self._store_identity = store_identity
         if self._prompt_builder is None:
             self._prompt_builder = PromptBuilder(
                 Path(__file__).resolve().parent.parent / "assets" / "characters"
             )
 
-        character_id = str(self._win.cfg.get("character", DEFAULT_CHARACTER))
+        character_id = str(self._target.cfg.get("character", DEFAULT_CHARACTER))
         system_prompt = self._prompt_builder.effective_system_prompt(settings, character_id)
         session = self._store.create(character_id, settings.active_provider, system_prompt)
         session.custom_title = (
@@ -268,7 +297,7 @@ class FileInterpretController(QObject):
         self._chars = 0
         self._started_at = time.monotonic()
         self._title = paths[0].name if len(paths) == 1 else f"{len(paths)} 个文件"
-        self._heartbeat.start(int(_progress_interval_seconds(self._win.cfg) * 1000))
+        self._heartbeat.start(int(_progress_interval_seconds(self._target.cfg) * 1000))
         self._bubble(f"开始解读《{self._title}》～读完了告诉你")
 
     # ---------------------------------------------------------- 请求回调
@@ -297,7 +326,7 @@ class FileInterpretController(QObject):
             self._session = synced
         self._state = "idle"
         duration = int(max(6000, min(20000, 4000 + len(reply) * 150)))
-        self._win.show_bubble(f"解读完成：{reply}", duration_ms=duration)
+        self._target.show_bubble(f"解读完成：{reply}", duration_ms=duration)
 
     def _on_error(self, request_id: str, message: str) -> None:
         if request_id != self._request_id:
@@ -305,7 +334,7 @@ class FileInterpretController(QObject):
         self._request_id = None
         self._heartbeat.stop()
         self._state = "idle"
-        self._win.show_bubble(f"解读失败了：{message}", duration_ms=6000)
+        self._target.show_bubble(f"解读失败了：{message}", duration_ms=6000)
 
     def _on_stopped(self, request_id: str) -> None:
         if request_id != self._request_id:
@@ -325,4 +354,4 @@ class FileInterpretController(QObject):
 
     # ---------------------------------------------------------- 工具
     def _bubble(self, text: str, duration_ms: int = 3200) -> None:
-        self._win.show_bubble(text, duration_ms=duration_ms)
+        self._target.show_bubble(text, duration_ms=duration_ms)

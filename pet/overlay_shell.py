@@ -362,6 +362,9 @@ PER_SLOT_SETTING_KEYS = frozenset({
     "self_talk_speak_enabled", "self_talk_bubble_style", "bubble_text_scale",
     "click_show_balance", "click_show_self_talk",
     "companion_interaction",
+    "dialogue_mode", "dialogue_phrases",
+    "file_interpret",
+    "voice_chime_voice", "voice_chime_rate", "voice_chime_pitch", "voice_chime_volume",
     # 角色（per-pet 素材库）
     "character",
 })
