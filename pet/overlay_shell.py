@@ -964,6 +964,7 @@ class OverlayShell(QObject):
 
     # 「看看屏幕」worker → GUI 线程（wire 口径同 PetWindow.look_done）
     look_done = Signal(str, str, bool)
+    _look_result = Signal(object)
 
     def __init__(self, app, instance, *, screen=None, sprite_factory=None,
                  agent_link_manager=None, proactive_watcher=None) -> None:
@@ -1019,6 +1020,7 @@ class OverlayShell(QObject):
         # 分发；`look_at_screen` 每次调用都会重记。
         self._look_sprite = None
         self.look_done.connect(self._on_look_done)
+        self._look_result.connect(self._on_manual_look_result, Qt.QueuedConnection)
         # 黄金回旋：直接复用 golden_spin.GoldenSpinController（纯状态机：圈数
         # 累计/逐圈加速/缓动），宿主适配器把角度写进 sprite 的整帧旋转通道。
         # 懒建（默认关时不建对象、不 import golden_spin）。
@@ -2267,11 +2269,14 @@ class OverlayShell(QObject):
             return
         self._last_look_ts = now
         self._look_busy = True
-        self._look_bubble("让我看看…", 6000)
+        from .manual_screen_speech import begin
+        request = begin(self, self._look_sprite)
+        request.present("让我看看…", 6000, "cue")
         # 主线程解析快照，后台 worker 只做网络/识图（同 window.py 的线程纪律）
-        settings = self._config.chat_settings()
+        config = request.target.config()
+        settings = config.chat_settings()
         provider = copy.copy(settings.active_config)
-        provider.api_key = self._config.resolve_api_key(provider)
+        provider.api_key = config.resolve_api_key(provider)
         system_prompt = settings.default_system_prompt
         # 角色展示名按**发起者**的身份取（子宠可以有自己的角色）
         pet_name = self._config.character_display_name(str(
@@ -2279,12 +2284,12 @@ class OverlayShell(QObject):
                 "character", catalog.DEFAULT_CHARACTER)))
         threading.Thread(
             target=self._look_worker,
-            args=(provider, system_prompt, pet_name),
+            args=(provider, system_prompt, pet_name, request),
             daemon=True,
             name="overlay-look-screen",
         ).start()
 
-    def _look_worker(self, provider, system_prompt, pet_name: str = "") -> None:
+    def _look_worker(self, provider, system_prompt, pet_name: str = "", request=None) -> None:
         from . import vision as vision_mod
 
         try:
@@ -2295,12 +2300,18 @@ class OverlayShell(QObject):
             if shiboken6.isValid(self) is False:
                 return  # 壳已销毁：不再触碰信号
             user_text = f"[看看屏幕] 前台窗口：{app_info}" if app_info else "[看看屏幕]"
-            self.look_done.emit(reply, user_text, False)
+            if request is None:
+                self.look_done.emit(reply, user_text, False)
+            else:
+                self._look_result.emit((request, reply, user_text, False))
         except Exception as exc:
             logging.exception("看看屏幕失败")
             if shiboken6.isValid(self) is False:
                 return
-            self.look_done.emit(str(exc), "", True)
+            if request is None:
+                self.look_done.emit(str(exc), "", True)
+            else:
+                self._look_result.emit((request, str(exc), "", True))
 
     def _look_bubble(self, text: str, duration_ms: int = 3200) -> None:
         """识屏气泡：落**发起者**（``_look_sprite``，右键命中的那一只）头顶。
@@ -2314,12 +2325,29 @@ class OverlayShell(QObject):
             return
         self._show_bubble_text_for(self._look_sprite, text, duration_ms)
 
+    def _on_manual_look_result(self, payload):
+        from .manual_screen_speech import receive
+        receive(self, payload)
+
     def _on_look_done(self, text: str, user_text: str, is_error: bool) -> None:
         self._look_busy = False
+        request = getattr(self, "_manual_screen_request", None)
+        if request is not None:
+            request.timer.stop()
+            if not request.valid():
+                request.cancel()
+                return
+            request.stage = "final"  # revoke pending pre-cue before displaying any result
         if is_error:
-            self._look_bubble(f"看不清啊…{text[:60]}", 5000)
+            if request is not None:
+                request.present(f"看不清啊…{text[:60]}", 5000, "final", speak=False)
+            else:
+                self._look_bubble(f"看不清啊…{text[:60]}", 5000)
             return
-        self._look_bubble(text, max(4000, min(12000, len(text) * 150)))
+        if request is not None:
+            request.present(text, max(4000, min(12000, len(text)*150)), "final")
+        else:
+            self._look_bubble(text, max(4000, min(12000, len(text) * 150)))
         sync = self.on_look_synced
         if callable(sync):
             sync(user_text, text)

@@ -684,6 +684,8 @@ def test_look_screen_throttles_and_syncs_reply(tmp_path, monkeypatch):
             pass
 
     try:
+        shell.overlay.show()
+        app.processEvents()
         monkeypatch.setattr("pet.overlay_shell.threading.Thread", _Thread)
         assert shell.on_look_synced is not None
         shell.show_bubble  # 确保气泡面存在（首次冒泡惰性建气泡）

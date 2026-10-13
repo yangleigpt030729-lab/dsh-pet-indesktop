@@ -338,6 +338,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
     """桌宠窗口本体。"""
 
     look_done = Signal(str, str, bool)
+    _look_result = Signal(object)
     fullscreen_changed = Signal(bool)  # 全屏 watcher 线程 → 主线程（隐藏/恢复桌宠）
     cursor_visibility_changed = Signal(str)
     # 首帧就绪（一次性）：v4.2.1 起 GUI 线程不再同步解码首帧（da8f291），窗口刚
@@ -459,6 +460,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self._look_busy = False
         self._last_look_ts = 0.0
         self.look_done.connect(self._on_look_done)
+        self._look_result.connect(self._on_manual_look_result, Qt.QueuedConnection)
         self._self_talk_enabled = bool(config.get('self_talk_enabled', False))
         self._self_talk_texts = self._read_self_talk_texts(config.get('self_talk_texts'))
         self._self_talk_duration_seconds = max(
@@ -3432,7 +3434,12 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
             return
         self._last_look_ts = now
         self._look_busy = True
-        self.show_bubble("让我看看…", 6000)
+        from .manual_screen_speech import begin
+        request = begin(self)
+        if request is not None:
+            request.present("让我看看…", 6000, "cue")
+        else:
+            self.show_bubble("让我看看…", 6000)
 
         # 在主线程解析好快照，避免后台 worker 线程改写共享配置对象
         import copy
@@ -3447,7 +3454,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
 
         threading.Thread(
             target=self._look_worker,
-            args=(provider, system_prompt, pet_name),
+            args=(provider, system_prompt, pet_name, request) if request is not None else (provider, system_prompt, pet_name),
             daemon=True,
             name="pet-look-screen",
         ).start()
@@ -3456,7 +3463,7 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         """公开转发：触发一次"看看屏幕"识别（等价 _on_look_screen）。"""
         self._on_look_screen()
 
-    def _look_worker(self, provider: Any, system_prompt: str, pet_name: str = "") -> None:
+    def _look_worker(self, provider: Any, system_prompt: str, pet_name: str = "", request=None) -> None:
         # 延迟导入：无 Chat / 不使用「看看屏幕」的实例启动时不加载 PIL
         from . import vision as vision_mod
         try:
@@ -3468,19 +3475,42 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
             if shiboken6.isValid(self) is False:
                 return  # 窗口已销毁（退出/切角色），不再触碰信号
             user_text = f"[看看屏幕] 前台窗口：{app_info}" if app_info else "[看看屏幕]"
-            self.look_done.emit(reply, user_text, False)
+            if request is None:
+                self.look_done.emit(reply, user_text, False)
+            else:
+                self._look_result.emit((request, reply, user_text, False))
         except Exception as exc:
             logging.exception("看看屏幕失败")
             if shiboken6.isValid(self) is False:
                 return
-            self.look_done.emit(str(exc), "", True)
+            if request is None:
+                self.look_done.emit(str(exc), "", True)
+            else:
+                self._look_result.emit((request, str(exc), "", True))
+
+    def _on_manual_look_result(self, payload):
+        from .manual_screen_speech import receive
+        receive(self, payload)
 
     def _on_look_done(self, text: str, user_text: str, is_error: bool) -> None:
         self._look_busy = False
+        request = getattr(self, "_manual_screen_request", None)
+        if request is not None:
+            request.timer.stop()
+            if not request.valid():
+                request.cancel()
+                return
+            request.stage = "final"  # revoke pending pre-cue before displaying any result
         if is_error:
-            self.show_bubble(f"看不清啊…{text[:60]}", 5000)
+            if request is not None:
+                request.present(f"看不清啊…{text[:60]}", 5000, "final", speak=False)
+            else:
+                self.show_bubble(f"看不清啊…{text[:60]}", 5000)
             return
-        self.show_bubble(text, max(4000, min(12000, len(text) * 150)))
+        if request is not None:
+            request.present(text, max(4000, min(12000, len(text)*150)), "final")
+        else:
+            self.show_bubble(text, max(4000, min(12000, len(text) * 150)))
         if callable(self.on_look_synced):
             self.on_look_synced(user_text, text)
 

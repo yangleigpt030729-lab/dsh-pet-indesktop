@@ -341,6 +341,8 @@ def test_look_screen_remembers_clicked_sprite(tmp_path, monkeypatch):
             pass
 
     try:
+        shell.overlay.show()
+        app.processEvents()
         child = _spawn_child(shell)
         child_bubble = shell._bubble_followers[child].bubble
         assert child_bubble is not None, "子宠必须有自己的气泡控件"
