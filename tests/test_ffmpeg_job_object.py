@@ -63,6 +63,8 @@ time.sleep(300)
 
 _CHILD_VIA_HOOK = _CHILD_TEMPLATE.format(
     spawn='imageio_ffmpeg._io.subprocess.Popen')
+_CHILD_CONVERSION = _CHILD_TEMPLATE.format(
+    spawn='__import__("pet.frameseq_provision", fromlist=["_popen"])._popen')
 # 对照组：裸 subprocess.Popen，绕过 job 挂载漏斗。
 _CHILD_BYPASS = _CHILD_TEMPLATE.format(spawn='subprocess.Popen')
 
@@ -168,9 +170,10 @@ def _child_diagnostics(proc) -> str:
 
 
 # ------------------------------------------------------------ 修复组
-def test_ffmpeg_spawned_through_hook_dies_with_killed_parent():
+@pytest.mark.parametrize('source', [_CHILD_VIA_HOOK, _CHILD_CONVERSION], ids=['reader', 'conversion'])
+def test_ffmpeg_spawned_through_hook_dies_with_killed_parent(source):
     """核心验收：经产品漏斗拉起的 ffmpeg 在父进程被强杀后退出。"""
-    proc, payload = _spawn_child(_CHILD_VIA_HOOK)
+    proc, payload = _spawn_child(source)
     ffmpeg_pid = int(payload['ffmpeg_pid'])
     try:
         assert payload['job_ready'] is True, '子进程未能建立 Job Object'

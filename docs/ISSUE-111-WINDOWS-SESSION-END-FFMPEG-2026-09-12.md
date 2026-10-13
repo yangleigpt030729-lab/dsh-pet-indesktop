@@ -37,8 +37,10 @@ issue 里的日志证据正好对上：`webm 圈边界宽限期满未续圈，re
 | 3 | 元数据探测 | `webm_clip._ensure_meta` → `count_frames_and_secs` | 首次量取某素材帧数/时长 |
 | 4 | ffmpeg exe 探测 | `webm_clip._ensure_ffmpeg_exe` → `imageio_ffmpeg.get_ffmpeg_exe` | 冷缓存下的 `ffmpeg -version` |
 
-（`pet/animation_thumbnail.py` 只用 `imageio_ffmpeg.read_frames` 生成缩略图，不是
-进程 spawn 点，未计入。）
+2026-10-13 审计修正：`animation_thumbnail._decode_webm` 的 `read_frames` 同样会
+创建 FFmpeg；现已接入会话结束闸门与专属无控制台创建边界。帧序列 fps/exe 探测、
+后台转换也属于 spawn 点。完整清单见
+[FFmpeg 控制台修复报告](PR-REPORT-FFMPEG-NO-CONSOLE-2026-10-13.md)。
 
 ## 4. 修复
 

@@ -1,8 +1,8 @@
 # Windows 10 22H2 x64：完整陪伴增强版集中验收
 
-适用分支：**feature/win10-companion-memory**。本次增量：[表达风格/摸头朗读/投喂冲突修补](PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md)。关联：[完整交付报告](PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)、[上一轮入口修补](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)、[原打包流水线](ONEDIR_PACKAGING.md)。
+适用分支：**feature/win10-companion-memory**。最新修补：[FFmpeg 控制台与 PowerShell 5.1](PR-REPORT-FFMPEG-NO-CONSOLE-2026-10-13.md)，完整重新打包命令见第11节。关联：[完整交付报告](PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)、[上一轮入口修补](PR-REPORT-COMPANION-WINDOWS-ENTRIES-2026-10-13.md)、[原打包流水线](ONEDIR_PACKAGING.md)。
 
-用户已实测 Windows 10 / Python 3.12 x64 启动 GUI、桌宠可见、主动 AI 设置、灵动岛设置、Fake 主动气泡、头部 AI 气泡和身体原点击动画。身体自言自语默认关闭，未冒泡符合原配置。用户另已复现非文本投喂先“读不了”后趣味 AI 的矛盾气泡，本轮修补此问题。旧右键入口失败及旧默认 Fake 不发言也有用户证据。本轮正式入口修补及新增全部功能须按下表集中复验；不能把云端 Linux/offscreen 结果当成 Windows 验收。真实 DeepSeek：**NOT TESTED**。Windows EXE：**NOT BUILT**。现有 Python 3.12 环境可以继续使用，无需 Git、GitHub Desktop、管理员权限或重新安装 Python。
+用户最新 Windows 10 22H2 x64 / 19045、Python3.12、PySide6 6.8.3、PyInstaller6.19.0 证据：前轮 Fake 集中验收正常；约149MB绿色ZIP构建成功，EXE桌宠及独立设置窗口冒烟通过，摸头“合成测试”等交互正常。旧包运行中偶发 FFmpeg 黑窗口是本轮待修故障。**本轮修复包原生构建/控制台/PowerShell5.1复验：NOT TESTED**；真实DeepSeek及Edge声音仍 **NOT TESTED**。Linux/offscreen 不替代 Windows 验收。无需 Git、GitHub Desktop、管理员权限或重新安装 Python；保留旧源码、环境、构建包与正式用户数据。
 
 ## 1. 下载与安全更新
 
@@ -112,7 +112,7 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 ## 6. Windows 原生 Chat EXE 构建（进阶、可选）
 
-本轮代码和安全流程已准备，Linux不能构建Windows EXE，状态 **NOT BUILT**。普通用户源码验收不需要做此节。
+用户此前已成功完成Windows绿色版构建及基本EXE冒烟；Linux无法重打本轮修复包，其新包原生验证 **NOT TESTED**。本轮请优先执行第11节的全新WorkDir流程；此节保留通用说明。
 
 在普通 PowerShell、项目根目录、关闭旧Chat EXE后执行；WorkDir须全新：
 
@@ -128,7 +128,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_compan
 
 绿色版须解压**整个目录**，不能单发EXE。双击正常运行不用用户安装Python，数据在 `%APPDATA%\dsh-pet-standalone-webm-chat`。新变体第一次从同base普通旧目录复制配置、会话、两份SQLite、待办/统计/短记录和槽文件，目标已有数据优先，源保留。SQLite用backup含WAL，失败保留pending并暂停普通主动请求；修复源/权限后重启重试。Fake自有base不会导入正式APPDATA。
 
-冻结包的隔离验收入口：`exe --companion-acceptance --data-dir D:\Code\FishExeAcceptance`；尚需Windows构建后验证。卸载绿色版删除解压目录即可，**不删除APPDATA**；安装版按[原Inno Setup指南](ONEDIR_PACKAGING.md)构建，安装/卸载/自启仍须实机验收。
+冻结包的隔离验收入口：`exe --companion-acceptance --data-dir D:\Code\FishExeAcceptance`；此前用户已验证基本入口，本轮修复包仍须复验。卸载绿色版删除解压目录即可，**不删除APPDATA**；安装版按[原Inno Setup指南](ONEDIR_PACKAGING.md)构建，安装/卸载/自启仍须实机验收。
 
 ## 7. 出错、回退和记录
 
@@ -188,3 +188,206 @@ Set-Location 'D:\Code\FishSpeechUpdate\实际项目目录'
 7. 分别复测Legacy/Overlay与主/子宠：独立设置、角色、音色/语速/音调/音量不得串用。原固定点击台词预缓存、语音报时与节日提醒维持各自开关；关闭两种陪伴朗读不应关闭已启用的报时/节日服务。真实模式两个都开时应统一排队、不叠音；Fake合成记录不证明真实播放。
 
 真实声音必须在用户本机显式同意在线语音后单独验收，目标仍Windows10 22H2 x64/Python3.12。可先在独立 `--live` 目录无DeepSeek Key下验证本地备用文字的Edge语音，再于原设置页本机填写自己的DeepSeek Key做模型验收；不要将密钥放入源码/命令行/报告。记录网络/代理与音频设备。Linux Qt6.12及6.8.3 offscreen/Fake不是Windows声音成功证据。完成本轮集中复测后再决定下一步开发。
+
+## 11. FFmpeg 黑窗口修复：重新打包与原生复验
+
+本节给出一次完整流程，每个代码块只有一条PowerShell命令。在**同一个普通 Windows PowerShell 5.1 窗口**按顺序运行。命令使用你的旧Python作为创建新构建环境的解释器，不安装/修改旧venv。保留 `D:\Code\dsh-pet-indesktop`、`FishCompanionBuildDualSpeech20261013`、`FishPortableTest20261013`、旧Fake目录与APPDATA。先从托盘全部退出旧桌宠并关闭独立设置窗口；不要用按名称批量强杀。
+
+### 11.1 网页更新与预检查
+
+浏览器进入[开发分支](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/tree/feature/win10-companion-memory)，**Code → Download ZIP**，将新ZIP保存为 `D:\Code\FishFFmpegSource20261013.zip`。不要覆盖旧ZIP。以下所有新目录若已存在，改用统一的新后缀（例如 `20261013R2`），不要删除或合并旧目录。
+
+确认解压目标不存在：
+
+```powershell
+if (Test-Path 'D:\Code\FishFFmpegSource20261013') { throw 'Choose a NEW source directory; keep the old directory.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath 'D:\Code\FishFFmpegSource20261013.zip' -DestinationPath 'D:\Code\FishFFmpegSource20261013'
+```
+
+```powershell
+$repairSource = (Get-ChildItem 'D:\Code\FishFFmpegSource20261013' -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'pet\__main__.py') } | Select-Object -ExpandProperty FullName)
+```
+
+```powershell
+if (-not $repairSource -or @($repairSource).Count -ne 1) { throw 'Expected exactly one project root in the downloaded ZIP.' }
+```
+
+```powershell
+Set-Location $repairSource
+```
+
+```powershell
+$PSVersionTable.PSVersion
+```
+
+```powershell
+& 'D:\Code\FishVenv312\Scripts\python.exe' -X utf8 -c "import sys,struct,PySide6,imageio_ffmpeg; print(sys.version,struct.calcsize('P')*8,PySide6.__version__,imageio_ffmpeg.__version__)"
+```
+
+预期Python3.12 x64 / Qt6.8.3 / imageio-ffmpeg0.6.0。以下预解析须用 `powershell.exe`（Windows PowerShell5.1），不是仅用 `pwsh`（7.x）。四个正式 `.ps1` 应输出BOM/语法PASS；有错误就停止构建，保留输出，不手工把中文乱码改成“能解析”。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\check_powershell_scripts.ps1
+```
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+```
+
+```powershell
+$env:PYTHONUTF8 = '1'
+```
+
+```powershell
+$env:PYTHONIOENCODING = 'utf-8'
+```
+
+### 11.2 新 WorkDir 构建、保留日志与安全检查
+
+```powershell
+New-Item -ItemType Directory -Path 'D:\Code\FishFFmpegLogs20261013' -ErrorAction Stop
+```
+
+```powershell
+Start-Transcript -Path 'D:\Code\FishFFmpegLogs20261013\build.log' -NoClobber
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_companion.ps1 -PythonExe 'D:\Code\FishVenv312\Scripts\python.exe' -WorkDir 'D:\Code\FishCompanionBuildFFmpeg20261013'
+```
+
+必须检查构建退出码为0，资源/编码/Qt DLL/瘦身门禁与**EXE及独立设置窗口**冒烟均通过。桥接import smoke依赖已有Node，若跳过就单独记录NOT TESTED。任何阶段失败时保留新WorkDir，不继续启动产物，不用跳过检查参数重试；修复后另选R2目录重建。
+
+```powershell
+if ($LASTEXITCODE -ne 0) { throw 'Build failed. Keep the work directory and transcript for diagnosis.' }
+```
+
+```powershell
+Stop-Transcript
+```
+
+```powershell
+$repairStage = 'D:\Code\FishCompanionBuildFFmpeg20261013\dsh-pet-companion-win10'
+```
+
+```powershell
+$repairPython = 'D:\Code\FishCompanionBuildFFmpeg20261013\build-venv\Scripts\python.exe'
+```
+
+```powershell
+Get-FileHash (Join-Path $repairStage 'dist-onedir\dsh-pet-standalone-webm-chat-portable.zip') -Algorithm SHA256
+```
+
+```powershell
+Get-Item (Join-Path $repairStage 'dist-onedir\dsh-pet-standalone-webm-chat-portable.zip') | Select-Object Name,Length
+```
+
+可复现依赖快照在新WorkDir的 `build-dependencies.txt`；本轮不改正式依赖版本，也不打包任何Key。以下pytest工具只安装到**新构建venv**，产物已构建，不改变旧环境或绿色包。
+
+```powershell
+Set-Location $repairStage
+```
+
+```powershell
+& $repairPython -X utf8 -m pip install pytest -c packaging\constraints-win10-companion.txt
+```
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+```
+
+```powershell
+& $repairPython -X utf8 -m pytest -q tests/test_ffmpeg_console_flags.py tests/test_ffmpeg_windows_console.py tests/test_ffmpeg_job_object.py tests/test_powershell_encoding.py tests/test_windows_ffmpeg_observer.py tests/test_session_end_ffmpeg_guard.py tests/test_frameseq_provision.py tests/test_animation_thumbnail_cache.py tests/test_companion_build_workflow.py --junitxml='D:\Code\FishFFmpegLogs20261013\native-tests.xml'
+```
+
+Windows专用测试必须实际执行，不能把SKIP当PASS：真实FFmpeg版本/元数据/首帧/reader重启/fps/缩略图/后台转换，断言CREATE_NO_WINDOW、没有可附着的控制台、正常出帧和退出；Job测试包含reader及转换父进程强杀防孤儿，另有绕过Job的反例对照（测试自行清理自己的反例进程）。PowerShell测试用真实5.1解析器验证有效脚本、缺BOM和语法错误三种结果。源码测试通过仍不等于原生EXE通过。
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+```
+
+### 11.3 启动新绿色版，实际复现全部场景
+
+```powershell
+if (Test-Path 'D:\Code\FishPortableFFmpeg20261013') { throw 'Choose a NEW portable directory; retain the old portable build.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath (Join-Path $repairStage 'dist-onedir\dsh-pet-standalone-webm-chat-portable.zip') -DestinationPath 'D:\Code\FishPortableFFmpeg20261013'
+```
+
+```powershell
+$repairExe = 'D:\Code\FishPortableFFmpeg20261013\dsh-pet-standalone-webm-chat\dsh-pet-standalone-webm-chat.exe'
+```
+
+原包装ZIP若目录结构变化，先在资源管理器定位同时带 `_internal` 的EXE，再只修改上一行变量。不要移动EXE脱离 `_internal`，本轮不要双击无参数启动（那会使用正式APPDATA）。观察器会以 `--companion-acceptance` 和新的外部data-dir启动真实冻结EXE，Fake完全离线；程序、动画和设置都运行原产品路径。
+
+先验Legacy默认自动转换模式：
+
+```powershell
+$env:PET_RENDER_TOPOLOGY = 'legacy'
+```
+
+```powershell
+Remove-Item Env:PET_FRAMESEQ -ErrorAction SilentlyContinue
+```
+
+```powershell
+& $repairPython -X utf8 scripts\watch_windows_ffmpeg_console.py --exe $repairExe --data-dir 'D:\Code\FishFFmpegAcceptanceLegacy20261013' --report 'D:\Code\FishFFmpegLogs20261013\legacy-console.json' --seconds 1200
+```
+
+观察期间按下表操作；完成后**从托盘“全部退出”**，观察器才能记录正常退出与无残留。上限20分钟，超时/按Ctrl+C不算完整通过；观察器不会强杀已有桌宠，也不会删除数据，超时后它新启动的桌宠须自行从托盘退出。不要同时开旧EXE。
+
+| 场景 | 操作与预期 |
+|---|---|
+| 首次启动 / 冷版本、元数据 | 新目录第一次启动、等桌宠出帧；无FFmpeg黑窗口，尺寸/透明边缘/速度正常 |
+| 素材切换 / 缩略图 | 在原动画菜单展开不同分类、切换素材和角色；缩略图/透明动画正常，无黑窗口 |
+| 连续摸头 | 连续进行多次真实点击；动画、合成AI及原两个朗读开关行为与前轮一致，不弹控制台 |
+| 文件投喂 | PNG/ZIP/TXT/目录及多文件（使用无私人内容的副本），先统计后趣味合成；原文件不变，不弹控制台 |
+| 首帧预热 | 新角色/冷动画，快速切换、拖动、摸头；首帧/取消/再次播放正常，无控制台/挂住 |
+| 后台帧序列转换 | 默认PET_FRAMESEQ未禁用；新绿色目录启动后保留运行，检查原后台供给/缓存日志或frameseq世代出现；不能只验已缓存动画 |
+| 周期性回收 | 用下面Overlay WebM专测运行至少12分钟，保持可见闲置后再次互动；原10分钟reader回收后新进程仍无控制台（若被暂停/隐藏导致未到圈边界，应延长并记录） |
+| 退出 / 无孤儿 | 托盘全部退出；观察报告exit/orphan PASS，任务管理器无该新包的FFmpeg残留，之后可重启 |
+
+再验Overlay：必须先全部退出Legacy。此进程专测禁用frameseq，保证普通WebM reader和原定期回收实际被执行；不改源文件/持久设置、不删除已有缓存，结束后移除环境变量恢复默认。
+
+```powershell
+$env:PET_RENDER_TOPOLOGY = 'overlay'
+```
+
+```powershell
+$env:PET_FRAMESEQ = '0'
+```
+
+```powershell
+& $repairPython -X utf8 scripts\watch_windows_ffmpeg_console.py --exe $repairExe --data-dir 'D:\Code\FishFFmpegAcceptanceOverlay20261013' --report 'D:\Code\FishFFmpegLogs20261013\overlay-console.json' --seconds 1200
+```
+
+两拓扑均测试主/子宠对应角色与独立设置窗口，并补睡眠唤醒、快速换素材/退出。观察工具每50ms抽样可见窗口，按新包FFmpeg的完整标题路径匹配，仅记录句柄/合成二进制标识，不保存其它窗口标题或私人文字。它不是每个窗口创建事件的无漏报证明；短暂闪烁可能漏采样，人工看到任何黑窗口仍判FAIL。无观察到FFmpeg进程、未正常退出或工具异常不报告完整PASS；报告不自动认证交互场景，必须逐项人工填写。
+
+### 11.4 收集证据与恢复默认环境
+
+```powershell
+Get-Content 'D:\Code\FishFFmpegLogs20261013\legacy-console.json' -Encoding UTF8
+```
+
+```powershell
+Get-Content 'D:\Code\FishFFmpegLogs20261013\overlay-console.json' -Encoding UTF8
+```
+
+```powershell
+Get-ChildItem 'D:\Code\FishFFmpegLogs20261013' | Select-Object Name,Length
+```
+
+```powershell
+Remove-Item Env:PET_RENDER_TOPOLOGY -ErrorAction SilentlyContinue
+```
+
+```powershell
+Remove-Item Env:PET_FRAMESEQ -ErrorAction SilentlyContinue
+```
+
+反馈：源码分支/提交号、Windows19045/Python/Qt/PyInstaller版本、ZIP字节数与SHA256、build.log、native-tests.xml、两个console.json，以及上述八项各自PASS/FAIL/NOT TESTED和实际时间。若再出现黑窗口，记录标题/操作/拓扑/角色/运行多久/是否后台转换或回收，截取仅该控制台的脱敏图片。不要上传APPDATA、API Key、个人SQLite或聊天/待办内容。失败保留新目录，退出后可回到旧 `FishPortableTest20261013`；绝不覆盖旧包。真实DeepSeek、真实Edge声音、本轮新EXE控制台修复，在拿到实际结果前仍为 **NOT TESTED**。

@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QImageReader
 
 from . import catalog
+from .webm_clip import _PopenCapture, session_ending
 
 try:
     import imageio_ffmpeg
@@ -65,10 +66,11 @@ def _decode_gif(path: Path) -> QImage:
 
 
 def _decode_webm(path: Path) -> QImage:
-    if imageio_ffmpeg is None:
+    if imageio_ffmpeg is None or session_ending():
         return QImage()
     generator = None
     try:
+        _PopenCapture._install()
         generator = imageio_ffmpeg.read_frames(
             str(path),
             pix_fmt="rgba",

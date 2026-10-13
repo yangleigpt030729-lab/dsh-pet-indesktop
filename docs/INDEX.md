@@ -136,6 +136,8 @@
 
 ## PR 报告存档
 
+- [Windows FFmpeg 控制台与 PowerShell 5.1](PR-REPORT-FFMPEG-NO-CONSOLE-2026-10-13.md)：全运行期 FFmpeg 创建入口、BOM/预解析及原生 EXE 复验步骤；重新打包前必读。
+
 - [陪伴双朗读与取消成功冷却](PR-REPORT-COMPANION-DUAL-SPEECH-2026-10-13.md)：两独立语音授权、原通道撤销、投喂顺序与待办接线；本轮Windows复测前必读。
 
 - [PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md](PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md)：用户保存的AI人设优先、默认角色回退及聊天热更新/旧异步失效；复验System Prompt优先级前必读。

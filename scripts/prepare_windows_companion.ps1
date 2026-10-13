@@ -1,6 +1,7 @@
-<# Creates a source-test environment, not a final EXE release. Never reads keys. #>
+﻿<# Creates a source-test environment, not a final EXE release. Never reads keys. #>
 param([switch]$RunFocusedTests, [ValidateSet('3.11','3.12')][string]$PythonVersion = '3.11')
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'check_powershell_scripts.ps1')
 $companionRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $companionRoot
 $env:PYTHONUTF8 = '1'

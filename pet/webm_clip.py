@@ -5,8 +5,8 @@ WebM-backed clip library（webm 主路线）。
 使用 imageio-ffmpeg 自带的静态 ffmpeg 解码 640×360 透明 webm：
 - read_frames(..., pix_fmt='rgba', bits_per_pixel=32, input_params=_FFMPEG_INPUT_PARAMS)
   可正确保留 VP9 alpha，输出 RGBA 原始帧。
-- imageio_ffmpeg 内部在 Windows 上使用 STARTUPINFO 隐藏控制台窗口，
-  避免旧 ffmpeg 子进程方案导致的“窗口反复出现/消失”。
+- Windows 下仅在 FFmpeg 创建边界追加 CREATE_NO_WINDOW；保留 imageio 的
+  STARTUPINFO 和所有既有标志，覆盖解码、探测及版本检查。
 
 线程模型（B7 生命周期受控）：
 - 后台 reader 线程只负责把 RGBA 字节放入有界队列；每帧附带素材源时间线
@@ -77,6 +77,7 @@ import queue
 import subprocess
 import sys
 import threading
+import ntpath
 import weakref
 import time
 import types
@@ -272,6 +273,7 @@ def _ensure_ffmpeg_exe() -> None:
         return
     with _FFMPEG_EXE_LOCK:
         try:
+            _PopenCapture._install()
             imageio_ffmpeg.get_ffmpeg_exe()
         except Exception:
             pass
@@ -842,8 +844,9 @@ class _Reader:
 class _PopenCapture:
     """跨线程透明的 subprocess.Popen 包装，用于捕获 reader 线程拉起的 ffmpeg 进程句柄。
 
-    - 安装一次（幂等、加锁防并发）：把 imageio_ffmpeg._io 模块内的 `subprocess`
-      引用替换为一个代理模块（其余属性原样透传、仅 Popen 换成 _wrapped），
+    - 安装一次（幂等、加锁防并发）：把 imageio_ffmpeg._io / _utils 内的
+      `subprocess` 引用替换为代理模块，Popen 经 _wrapped，标准库四个便利
+      函数的全局名字绑定到代理（否则 check_output/check_call 会绕过 Popen），
       只影响 imageio_ffmpeg 的 Popen 调用；进程内全局 subprocess.Popen 保持原样
       ——不能全局替换，否则会破坏 `class X(subprocess.Popen)` 这类继承用法
       （asyncio.windows_utils 就是这样，会导致 unittest.mock 导入失败）。
@@ -897,16 +900,49 @@ class _PopenCapture:
             if cls._installed:
                 return
             cls._real_popen = subprocess.Popen
-            io_mod = sys.modules.get("imageio_ffmpeg._io")
-            if io_mod is not None and getattr(io_mod, "subprocess", None) is subprocess:
+            for name in ("imageio_ffmpeg._io", "imageio_ffmpeg._utils"):
+                sdk_mod = sys.modules.get(name)
+                if sdk_mod is None or getattr(sdk_mod, "subprocess", None) is not subprocess:
+                    continue
                 proxy = types.ModuleType("subprocess")
                 proxy.__dict__.update(subprocess.__dict__)
-                proxy.Popen = cls._wrapped  # type: ignore[assignment]
-                io_mod.subprocess = proxy
+                proxy.Popen = cls._imageio_popen  # type: ignore[assignment]
+                # Reuse stdlib timeout/exception/pipe cleanup verbatim. Merely
+                # copying functions retains their *global* Popen binding.
+                # Only these two FFmpeg modules see the rebound functions; the
+                # global Popen remains a class (including asyncio subclasses).
+                for helper in ("call", "check_call", "check_output", "run"):
+                    original = getattr(subprocess, helper)
+                    rebound = types.FunctionType(
+                        original.__code__, proxy.__dict__, original.__name__,
+                        original.__defaults__, original.__closure__,
+                    )
+                    rebound.__kwdefaults__ = original.__kwdefaults__
+                    setattr(proxy, helper, rebound)
+                sdk_mod.subprocess = proxy
             cls._installed = True
 
     @classmethod
-    def _wrapped(cls, *args, **kwargs):
+    def _imageio_popen(cls, *args, **kwargs):
+        # All commands in these SDK modules are FFmpeg, including a renamed
+        # IMAGEIO_FFMPEG_EXE. Other application subprocess calls stay untouched.
+        return cls._wrapped(*args, _ffmpeg=True, **kwargs)
+
+    @classmethod
+    def _wrapped(cls, *args, _ffmpeg=False, **kwargs):
+        argv = args[0] if args else kwargs.get("args")
+        exe = argv[0] if isinstance(argv, (list, tuple)) and argv else argv
+        prefix = b"ffmpeg" if isinstance(exe, bytes) else "ffmpeg"
+        is_ffmpeg = _ffmpeg or (isinstance(exe, (str, bytes)) and
+                               ntpath.basename(exe).lower().startswith(prefix))
+        if os.name == "nt" and is_ffmpeg:
+            no_window = int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+            # Popen's positional creationflags slot is 13 on supported Python
+            # 3.11/3.12; preserve this form as well as the usual keyword form.
+            if len(args) > 13:
+                args = (*args[:13], int(args[13]) | no_window, *args[14:])
+            else:
+                kwargs["creationflags"] = int(kwargs.get("creationflags", 0)) | no_window
         proc = cls._real_popen(*args, **kwargs)
         # 孤儿防护：挂早不挂晚（Popen 刚返回，进程几乎不可能已退出）。这里
         # 是所有 imageio-ffmpeg 解码进程的唯一漏斗（read_frames/write_frames
@@ -1587,6 +1623,7 @@ class WebMClip(QObject):
                     threading.Thread(target=self._warm_meta_quiet,
                                      daemon=True, name='pet-warm-meta').start()
                 return
+            _PopenCapture._install()
             frames, secs = imageio_ffmpeg.count_frames_and_secs(key)
             if frames and frames > 0:
                 self._frame_count = int(frames)

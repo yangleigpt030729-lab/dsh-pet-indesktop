@@ -1,4 +1,4 @@
-<# Clean Windows x64 Chat onedir build. No existing venv/data/output is replaced. #>
+﻿<# Clean Windows x64 Chat onedir build. No existing venv/data/output is replaced. #>
 param(
     [string]$PythonExe = 'D:\Code\FishVenv312\Scripts\python.exe',
     [string]$WorkDir = 'D:\Code\FishCompanionBuild'
@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 $companionSource = Split-Path -Parent $PSScriptRoot
+& (Join-Path $PSScriptRoot 'check_powershell_scripts.ps1') -SourceRoot $companionSource
 $companionWork = [System.IO.Path]::GetFullPath($WorkDir)
 if (Test-Path $companionWork) { throw 'WorkDir must be new; retain old builds for rollback.' }
 if ($companionWork.StartsWith($companionSource + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -30,6 +31,7 @@ $companionStage = Join-Path $companionWork 'dsh-pet-companion-win10'
 if ($LASTEXITCODE -ne 0) { throw 'Clean build venv creation failed.' }
 $companionPython = Join-Path $companionWork 'build-venv\Scripts\python.exe'
 Set-Location $companionStage
+& (Join-Path $companionStage 'scripts\check_powershell_scripts.ps1') -SourceRoot $companionStage
 & $companionPython -X utf8 -m pip install -r requirements.txt -r packaging\requirements-companion-build.txt -c packaging\constraints-win10-companion.txt
 if ($LASTEXITCODE -ne 0) { throw 'Pinned installation failed; do not bypass TLS or pins.' }
 & $companionPython -X utf8 -m pip check

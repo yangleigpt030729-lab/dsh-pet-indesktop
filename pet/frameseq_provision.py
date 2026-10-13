@@ -204,7 +204,7 @@ from typing import Callable, Iterable, Sequence
 
 from PySide6.QtCore import QLockFile, QThread, Signal
 
-from .webm_clip import session_ending
+from .webm_clip import _PopenCapture, session_ending
 
 try:  # 与 webm_clip 同一依赖口：不可用时供给静默 no-op（播放同样会降级）
     import imageio_ffmpeg
@@ -1153,6 +1153,7 @@ def probe_fps(webm: Path | str) -> float:
         return DEFAULT_FPS
     gen = None
     try:
+        _PopenCapture._install()
         gen = imageio_ffmpeg.read_frames(
             str(webm), pix_fmt="bgra", bits_per_pixel=32,
             input_params=list(_PROBE_INPUT_PARAMS),
@@ -1175,16 +1176,18 @@ def ffmpeg_exe() -> str | None:
     if imageio_ffmpeg is None or session_ending():
         return None
     try:
+        _PopenCapture._install()
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
         return None
 
 
 def _creation_flags() -> int:
-    """Windows：ffmpeg 低于正常优先级（POSIX 忽略，返回 0）。"""
+    """Windows：保持低优先级且不创建控制台（POSIX 返回 0）。"""
     if os.name != "nt":
         return 0
-    return int(getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0))
+    return (int(getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)) |
+            int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)))
 
 
 def _ffmpeg_argv(exe: str, webm: Path, tmp_dir: Path) -> list[str]:
@@ -1802,7 +1805,8 @@ def unblend_frames_in_place(frames_dir: Path | str, *,
 
 def _popen(argv: Sequence[str], **kwargs) -> subprocess.Popen:
     """Popen 适配层（测试注入点：假 exe / 桩 subprocess）。"""
-    return subprocess.Popen(list(argv), **kwargs)
+    _PopenCapture._install()
+    return _PopenCapture._wrapped(list(argv), _ffmpeg=True, **kwargs)
 
 
 def _terminate_quietly(proc: object) -> None:
