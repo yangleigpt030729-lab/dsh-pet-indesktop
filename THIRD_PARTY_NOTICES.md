@@ -181,3 +181,12 @@ SOFTWARE.
 
 `tests/test_festival.py` 中有断言守卫这三个库的存在（`test_pop_culture_libraries_are_present_and_non_empty`）；
 若你为合规主动删除它们，请一并移除或调整该断言。
+
+---
+
+## 6. Inno Setup 简体中文安装向导翻译（构建资源）
+
+- 文件：`packaging/ChineseSimplified.isl`，来自 [Inno Setup 官方源码库](https://github.com/jrsoftware/issrc/blob/main/Files/Languages/ChineseSimplified.isl)，2026-10-14 固定保存。
+- 原文件标注 Inno Setup **6.5.0+**，维护者 Zhenghan Yang (Kira)；原署名、来源及翻译说明完整保留。
+- 仓库固定文件 SHA256：`3784dcfb01a7623fcb9de1b10959cb1348feeefaf9ce8d97a59217356e30ecad`；仅统一 UTF-8 BOM/LF，不改翻译文字。下载原件 SHA256 为 `e0b0b350e2245f3c5e65586dfe43d574f6e7f06f2261149aba284954b3fc9a8d`。
+- Inno Setup 使用及分发许可见 [官方许可](https://jrsoftware.org/files/is/license.txt)。本项目不改编译器、不伪造数字签名；翻译随安装器编译，安装过程不下载语言或运行库。

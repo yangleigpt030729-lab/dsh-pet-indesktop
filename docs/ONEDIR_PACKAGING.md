@@ -109,3 +109,7 @@ python -m pytest -q tests/test_config_key_migration.py
 `feature/win10-companion-memory` 提供 `scripts/build_windows_companion.ps1`：用已有Python3.11/3.12 x64创建全新构建venv/安全源码暂存，固定Qt6.8.3和构建工具，复用本页原onedir流水线。`build_onedir.ps1` 新增 `-PythonExe`（默认python，所有调用显式UTF-8）、`-NoStopRunning`（拒绝而非强杀旧Chat进程）及 `-SmokeAcceptance`（桌宠/设置冒烟均临时Fake隔离，不读正式Key）。稳定版冻结文件保持不覆盖。
 
 具体命令、输出目录、回滚和验收见[Windows集中验收指南](WINDOWS10-COMPANION-ACCEPTANCE.md)。当前Linux仅验证源代码/脚本契约及Windows构建wheel解析；PowerShell原生执行、DLL链、EXE启动、安装包均 NOT TESTED，Windows EXE NOT BUILT。源码ZIP不能冒充EXE。
+
+## 2026-10-14：大肥鱼 v1.0.0 安装器封装
+
+新增独立 `scripts/build_windows_installer.ps1` / `packaging/dafeiyu-v1.iss`，消费原已验收 portable ZIP，不能仅复制EXE；当前真实ZIP在根目录放EXE与_internal。独立固定AppId、中文产品名及安装器1.0.0不改变上游内部版本/旧通用安装器。原TTS/Qt/资源/编码及安全门禁继续执行，按原字节复制完整payload；升级/卸载不强杀、不删除APPDATA/缓存/凭据。新输出目录、一步构建和未签名/自启/卸载验收见[安装器指南](WINDOWS-INSTALLER-V1-ACCEPTANCE.md)。用户已确认前轮Windows十项全部成功；本轮原生Setup仍NOT BUILT/NOT TESTED，等待Windows执行。

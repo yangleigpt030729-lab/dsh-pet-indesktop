@@ -623,7 +623,7 @@ Expand-Archive -LiteralPath $experienceZip -DestinationPath 'D:\Code\FishPortabl
 ```
 
 ```powershell
-$experienceExe = 'D:\Code\FishPortableExperience20261013\dsh-pet-standalone-webm-chat\dsh-pet-standalone-webm-chat.exe'
+$experienceExe = 'D:\Code\FishPortableExperience20261013\dsh-pet-standalone-webm-chat.exe'
 ```
 
 始终保留完整EXE与 `_internal` 同级目录；若解压层级不同，只修改上述EXE路径。先隔离Fake验GUI，全部退出后再换全新live目录，不复制正式APPDATA或旧SQLite：
@@ -691,3 +691,7 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
 反馈提交、版本、ZIP SHA256、build.log/tests.xml、上述矩阵逐项PASS/FAIL/NOT TESTED及分段耗时。失败时全部退出新程序，保留新目录供定位，直接回原已验证绿色目录启动旧EXE；正式数据与旧包不被覆盖。原生新包尚未在云端生成，这套流程须在你的Windows10机器执行。
+
+## 14. v1.0.0 安装包
+
+用户已在Windows10确认§13十项全部通过，包括真实微软音频、音量热更新/静音/双向同步、快速投喂、识屏前置与最终朗读、原岛聊天/文件授权/动画/拖动。新任务仅封装Inno安装器，不改业务。原ZIP主EXE确在解压根目录，§13启动路径已据实纠正；新安装包的单行PowerShell构建与安装/升级/卸载验收见[专用指南](WINDOWS-INSTALLER-V1-ACCEPTANCE.md)。旧包/目录/数据保留，Setup原生编译和实机安装结果仍NOT TESTED。

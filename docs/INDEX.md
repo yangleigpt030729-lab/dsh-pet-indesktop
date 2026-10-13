@@ -35,6 +35,7 @@
 
 | 文档 | 一句话内容 | 何时必读 |
 |---|---|---|
+| [`WINDOWS-INSTALLER-V1-ACCEPTANCE.md`](WINDOWS-INSTALLER-V1-ACCEPTANCE.md) | v1.0.0 Inno Setup、完整安全ZIP、逐条PS5.1构建及安装/升级/卸载12项实机验收。 | **制作安装器、迁移自启或进行最终原生分发验收时必读**。 |
 | [`ONEDIR_PACKAGING.md`](ONEDIR_PACKAGING.md) | onedir 打包流水线：绿色版 zip + Inno Setup 安装包，目标是运行期零解压、不产生 `_MEI` 缓存。 | **改 PyInstaller spec、打包资源、或平台构建脚本（`scripts/build_onedir.ps1` / `build_macos.sh` / `build_linux.sh`）时必读**（AGENTS.md 口径）。 |
 | [`STABLE_BUILDS.md`](STABLE_BUILDS.md) | 稳定版构建冻结记录：受保护文件名、构建隔离规则、防止误覆盖稳定版产物。 | **改发布/构建工作流时必读**（AGENTS.md 口径）。注意其冻结对象是 onefile 时代的 `dist/*.exe`，现行发布形态已是 onedir（见文末过时清单）。 |
 | [`BUILD-CI-FAILURE-NOTES-2026-08.md`](BUILD-CI-FAILURE-NOTES-2026-08.md) | 三平台打包/CI 反复踩坑与最终解法汇总（持续更新）：脚本统一入口、资源漏收集、依赖只在叶子模块导入导致整族用例红等。 | CI 连续两轮红、或遇到"本机红 CI 绿"的依赖类假红时；动手重试之前先查这里是否已有同类记录。 |
@@ -136,6 +137,7 @@
 
 ## PR 报告存档
 
+- [v1.0.0 Windows安装器封装](PR-REPORT-INSTALLER-V100-2026-10-14.md)：完整ZIP隐私及归档门禁、固定AppId/升级/卸载/自启保护；改安装器或准备Windows原生分发验收时必读。
 - [陪伴延迟与统一音量控制](PR-REPORT-COMPANION-LATENCY-VOLUME-2026-10-13.md)：识屏前置朗读、投喂50毫秒合并、音色表后台刷新和菜单/设置音量同步；改这些路径之前必读，Windows增量验收见指南§13。
 
 - [Edge TTS新接口、岛聊天与指定回复朗读](PR-REPORT-EDGE-TTS-ISLAND-RESULT-SPEECH-2026-10-13.md)：运行期语音兼容、实际按钮路由、识屏/授权文件回复的朗读测试与打包证据；修改这些路径前必读，Windows复验配合指南§12。
