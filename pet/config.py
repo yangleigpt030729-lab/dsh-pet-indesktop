@@ -1490,7 +1490,9 @@ class Config:
             aliases[character_id] = name
         else:
             aliases.pop(character_id, None)
-        self.save()
+        if self.save():
+            from .chat.display_name import notify
+            notify(self, character_id, name)
 
     def character_display_name(self, character_id: str) -> str:
         """角色显示名：用户别名优先，未设置回退目录显示名（manifest name/角色 id）。

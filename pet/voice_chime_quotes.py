@@ -235,3 +235,44 @@ ENGLISH_QUOTES: tuple[str, ...] = (
     "Lean on me, when you're not strong.",
     "Raindrops keep fallin' on my head.",
 )
+
+# Local, time-aware defaults. No model calls or claims about the user's activity.
+_CONTEXT_ZH = (
+    ('夜深啦，给自己留一点休息时间吧。', '凌晨也别忘了照顾自己呀。', '如果还醒着，可以让眼睛歇一会儿。', '夜里适合放慢节奏，别太勉强自己。',
+     '忙完这一小段，不妨准备休息。', '深夜的事情，可以留一点给明天。', '夜深了，伸个懒腰再决定要不要继续吧。', '凌晨啦，休息也算认真生活。'),
+    ('早晨好，记得给早餐留点时间。', '新的一天开始啦，慢慢来。', '早上可以先喝一点水，再安排今天。', '早餐和好心情，都值得留个位置。',
+     '早晨啦，给自己一个轻松的开头吧。', '今天的安排可以一步一步来。', '早上好，别忘了照顾自己的胃。', '新的一天，先舒展一下身体吧。'),
+    ('上午啦，工作学习之间也可以歇一歇。', '上午别忘了喝点水呀。', '如果一直盯着屏幕，看看远处吧。', '上午的安排，可以分成小步来做。',
+     '工作或学习时，记得松松肩膀。', '上午啦，留一点空隙给自己。', '专心之余，也给眼睛一点休息时间。', '上午的事情，按自己的节奏来吧。'),
+    ('中午啦，给午餐留点时间吧。', '午间适合放松一下，别忘了吃饭。', '如果方便，午后之前可以小歇一会儿。', '午餐慢慢吃，照顾好自己呀。',
+     '中午到了，可以暂时把事情放一放。', '午间啦，吃饭也是重要的安排。', '午饭之后，不妨让肩膀和眼睛歇一歇。', '中午好，给自己一点轻松的时间。'),
+    ('午后啦，喝点水再继续吧。', '下午可以起来活动一下肩膀。', '午后的事情，慢慢安排也可以。', '如果有点疲惫，给自己一个小休息。',
+     '下午啦，看看远处，让眼睛歇一歇。', '午后别忘了伸个懒腰呀。', '下午的节奏，也可以稍微放轻松。', '午后啦，休息片刻再出发。'),
+    ('傍晚啦，记得好好吃晚餐。', '晚上到了，可以给自己留些放松时间。', '如果手边的事情告一段落，不妨歇一歇。', '晚餐时间附近，别忘了照顾自己的胃。',
+     '傍晚啦，伸伸懒腰，慢慢安排晚上。', '晚间也可以留一点时间给喜欢的事情。', '晚饭别太仓促，慢慢享用吧。', '傍晚好，给自己一点轻松的空隙。'),
+    ('夜晚啦，别让自己忙得太晚。', '晚上适合慢慢收尾，留些时间休息。', '睡前不妨让眼睛远离屏幕一会儿。', '夜里也要照顾自己，别太勉强。',
+     '晚间啦，可以开始安排休息了。', '今天没做完的事情，也可以留给明天。', '夜晚的节奏，不妨放慢一点。', '休息不是偷懒，晚上也给自己留点余地。'),
+)
+_CONTEXT_EN = (
+    ('It is late; leave yourself some time to rest.', 'Take it gently in these early hours.', 'If you are still awake, give your eyes a break.', 'Some things can wait until morning.',
+     'A little rest is a good plan tonight.', 'Keep a gentle pace at this late hour.', 'Consider winding down when you can.', 'Rest counts as taking care of yourself.'),
+    ('Good morning; leave some time for breakfast.', 'A new day can begin one small step at a time.', 'A sip of water makes a gentle morning start.', 'Make a little room for breakfast today.',
+     'Give yourself an easy start this morning.', 'Take the morning at your own pace.', 'A morning stretch might feel nice.', 'Good morning; remember to look after yourself.'),
+    ('A short break can fit into your morning.', 'Remember a little water this morning.', 'If you are using a screen, look into the distance.', 'Morning plans can be taken one step at a time.',
+     'Give your shoulders a little stretch.', 'Leave a little breathing room this morning.', 'Your eyes deserve a break from the screen.', 'Keep a comfortable pace until lunchtime.'),
+    ('It is lunchtime; make room for a meal.', 'A quiet midday break might be welcome.', 'Take a little rest around lunchtime if you can.', 'Enjoy lunch at a comfortable pace.',
+     'Midday is a good time to pause for a moment.', 'Lunch deserves a place in your plans.', 'After lunch, give your eyes a little rest.', 'Leave yourself some gentle time at midday.'),
+    ('A little water can be welcome this afternoon.', 'Consider stretching your shoulders this afternoon.', 'Take your afternoon plans one step at a time.', 'If you feel tired, a short break is an option.',
+     'Let your eyes look into the distance for a moment.', 'A gentle stretch might suit the afternoon.', 'Keep a comfortable afternoon pace.', 'Pause for a moment before your next step.'),
+    ('Evening is here; leave time for dinner.', 'Make a little space to relax this evening.', 'When you have a moment, consider taking a break.', 'Remember to look after yourself around dinner.',
+     'Stretch gently and plan a comfortable evening.', 'Leave some evening time for things you enjoy.', 'Enjoy dinner without rushing if you can.', 'Give yourself a little breathing room this evening.'),
+    ('It is getting late; do not push yourself too hard.', 'Leave some time to wind down tonight.', 'Give your eyes a screen break before bed.', 'Take care of yourself in these late hours.',
+     'Consider making room for rest tonight.', 'Unfinished things can sometimes wait until tomorrow.', 'A gentler pace may suit the night.', 'Rest is part of looking after yourself.'),
+)
+
+
+def contextual_quotes(hour: int, *, english=False) -> tuple[str, ...]:
+    band = 0 if hour < 6 else 1 if hour < 10 else 2 if hour < 12 else 3 if hour < 14 else 4 if hour < 18 else 5 if hour < 21 else 6
+    bases = (_CONTEXT_EN if english else _CONTEXT_ZH)[band]
+    tails = ('', ' I am here to keep you company.', ' One step at a time is fine.', ' Take a little moment for yourself.') if english else ('', '我在这里陪着你呀。', '一步一步来就好。', '也给自己留一点余地吧。')
+    return tuple(base + tail for tail in tails for base in bases)

@@ -163,7 +163,7 @@ class InteractionService(QObject):
         self.timer.start()
         policy = MemoryContext.from_config(cfg, '')
         use_memory = kind == 'head' and settings.memory_enabled
-        provider = replace(settings.active_config, max_tokens=96, timeout=min(20, settings.active_config.timeout))
+        provider = replace(settings.active_config, max_tokens=256 if kind == 'head' else 96, timeout=min(20, settings.active_config.timeout))
         def prepare():
             if not settings.enabled or now < self.backoff:
                 return None
@@ -205,7 +205,7 @@ class InteractionService(QObject):
         self.active['context'] = context
         if self.active['kind'] == 'feeding':
             self._record_latency('feed_to_request', self.active['target'].key)
-        self.rid = self.chat.send(messages, provider, memory_context=context, output_limit=256)
+        self.rid = self.chat.send(messages, provider, memory_context=context, output_limit=256, require_complete=True)
 
     def _result(self, rid, text):
         if not self.active or rid != getattr(self, 'rid', None):

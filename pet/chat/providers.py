@@ -95,7 +95,7 @@ def retry_after_seconds(value):
     return max(0, min(86400, seconds))
 
 class SSEParser:
-    def __init__(self): self._buffer=b''; self.done=False
+    def __init__(self): self._buffer=b''; self.done=False; self.finish_reason=None
     def feed(self,chunk:bytes):
         self._buffer+=chunk
         if len(self._buffer)>1024*1024: raise ProviderError('SSE 缓冲超过 1MB 上限（服务端未按事件分隔）')  # 审查 GLM-M5：防异常 provider 无界堆积
@@ -119,12 +119,14 @@ class SSEParser:
                 err=payload['error']; msg=err.get('message','Provider 返回错误') if isinstance(err,dict) else str(err); raise ProviderError(str(msg))
             choices=payload.get('choices',[]) if isinstance(payload,dict) else []
             if choices:
+                reason = choices[0].get('finish_reason')
+                if reason is not None: self.finish_reason = str(reason)
                 delta=choices[0].get('delta',{}) or {}; content=delta.get('content') if isinstance(delta,dict) else None
                 if content: out.append(str(content))
         return out
 
 class OpenAICompatibleProvider:
-    def stream(self,messages:list[dict[str,Any]],config:ProviderConfig,cancel_event:threading.Event,response_holder:list|None=None)->Iterator[str]:
+    def stream(self,messages:list[dict[str,Any]],config:ProviderConfig,cancel_event:threading.Event,response_holder:list|None=None, completion:dict|None=None)->Iterator[str]:
         endpoint=normalize_chat_endpoint(config.base_url,config.chat_path)
         payload:dict[str,Any]={'model':config.model,'messages':messages,'stream':True,'temperature':config.temperature,'max_tokens':config.max_tokens}
         headers=build_browser_headers({'Content-Type':'application/json','Accept':'text/event-stream'})
@@ -148,6 +150,8 @@ class OpenAICompatibleProvider:
                     if cancel_event.is_set(): return
                     yield delta
                 if parser.done: break
+            if completion is not None:
+                completion.update(reason=parser.finish_reason, complete=bool(parser.done or parser.finish_reason))
         finally:
             try: response.close()
             except Exception: pass

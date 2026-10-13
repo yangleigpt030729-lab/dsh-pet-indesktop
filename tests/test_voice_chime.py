@@ -46,7 +46,7 @@ from pet.voice_chime import (
     pick_quote,
     quote_day_order,
 )
-from pet.voice_chime_quotes import CHINESE_QUOTES, ENGLISH_QUOTES
+from pet.voice_chime_quotes import CHINESE_QUOTES, ENGLISH_QUOTES, contextual_quotes
 
 
 # ---------------------------------------------------------------- 配置默认值与清洗
@@ -440,7 +440,7 @@ def test_chime_index_in_day_counts_elapsed_chime_points():
 
 def test_pick_quote_walks_today_order_and_is_idempotent():
     """日内按当天排列顺序取用；同一分钟内 tick 多次结果一致。"""
-    cfg = {"voice": "zh-CN-XiaoxiaoNeural", "schedule": "hourly"}
+    cfg = {"voice": "zh-CN-XiaoxiaoNeural", "schedule": "hourly", "custom_quotes_zh": CHINESE_QUOTES}
     order = quote_day_order(CHINESE_QUOTES, datetime(2026, 9, 15).date().toordinal())
     assert pick_quote(datetime(2026, 9, 15, 0, 0), cfg) == order[0]
     assert pick_quote(datetime(2026, 9, 15, 1, 0), cfg) == order[1]
@@ -508,8 +508,8 @@ def test_pick_quote_zh_and_en_pools_rotate_independently():
     for hour in (0, 1, 8, 17):
         zh_quote = pick_quote(datetime(2026, 9, 15, hour, 0), zh_cfg)
         en_quote = pick_quote(datetime(2026, 9, 15, hour, 0), en_cfg)
-        assert zh_quote in CHINESE_QUOTES
-        assert en_quote in ENGLISH_QUOTES
+        assert zh_quote in contextual_quotes(hour)
+        assert en_quote in contextual_quotes(hour, english=True)
         assert zh_quote not in ENGLISH_QUOTES
         assert en_quote not in CHINESE_QUOTES
     assert pick_quote(datetime(2026, 9, 15, 0, 0), zh_cfg) != pick_quote(datetime(2026, 9, 15, 1, 0), zh_cfg)
@@ -537,15 +537,15 @@ def test_pick_quote_empty_custom_falls_back_to_builtin():
     """自定义留空（空串/空白行/空序列/缺失）时回退内置库。"""
     now = datetime(2026, 9, 15, 1, 0)
     for empty in ("", "   \n\n ", (), [], None):
-        assert pick_quote(now, {"voice": "zh-CN-XiaoxiaoNeural", "custom_quotes_zh": empty}) in CHINESE_QUOTES
-    assert pick_quote(now, {"voice": "zh-CN-XiaoxiaoNeural"}) in CHINESE_QUOTES
-    assert pick_quote(now, {"voice": "en-US-GuyNeural", "custom_quotes_en": ""}) in ENGLISH_QUOTES
+        assert pick_quote(now, {"voice": "zh-CN-XiaoxiaoNeural", "custom_quotes_zh": empty}) in contextual_quotes(now.hour)
+    assert pick_quote(now, {"voice": "zh-CN-XiaoxiaoNeural"}) in contextual_quotes(now.hour)
+    assert pick_quote(now, {"voice": "en-US-GuyNeural", "custom_quotes_en": ""}) in contextual_quotes(now.hour, english=True)
 
 
 def test_pick_quote_custom_is_language_specific():
     """自定义中文只作用于中文音色；英文音色仍独立走英文库。"""
     cfg = {"voice": "en-US-GuyNeural", "custom_quotes_zh": ("仅中文自定义",)}
-    assert pick_quote(datetime(2026, 9, 15, 1, 0), cfg) in ENGLISH_QUOTES
+    assert pick_quote(datetime(2026, 9, 15, 1, 0), cfg) in contextual_quotes(1, english=True)
 
 
 def test_build_chime_sentence_joins_text_and_rotated_quote():
@@ -847,13 +847,6 @@ def test_fire_cache_hit_uses_bubble_sentence(monkeypatch, tmp_path):
 
 def test_play_and_bubble_prefers_bubble_text(monkeypatch):
     """气泡优先用传进来的阿拉伯数字文本；未传时回退语音文本（兼容旧调用）。"""
-    import sys
-    import types
-
-    stub = types.ModuleType("PySide6.QtCore")
-    stub.QUrl = type("QUrl", (), {"fromLocalFile": staticmethod(lambda path: ("file", path))})
-    monkeypatch.setitem(sys.modules, "PySide6.QtCore", stub)
-
     seen = []
 
     class _Player:

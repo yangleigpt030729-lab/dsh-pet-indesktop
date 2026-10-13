@@ -61,7 +61,7 @@ def test_async_touch_has_no_global_completion_session_or_proactive_quota(tmp_pat
         wait(app, lambda: not s.busy)
         assert len(target.texts) == len(provider.calls) == 1
         assert provider.calls[0][2] != app.thread()
-        assert provider.calls[0][1].max_tokens == 96
+        assert provider.calls[0][1].max_tokens == 256
         assert not list(cfg.dir.glob('*.sqlite3')) and not list(cfg.dir.glob('*sessions*'))
     finally:
         s.close()

@@ -14,6 +14,7 @@ class _Worker(QThread):
         self._responses = []
         self.memory_context = memory_context
         self.output_limit = None
+        self.require_complete = False
         self.nonblocking_cancel = False
         self.safe_errors = False
         self._close_thread = None
@@ -45,6 +46,9 @@ class _Worker(QThread):
             sig = inspect.signature(self.provider.stream)
             if 'response_holder' in sig.parameters:
                 stream_kwargs['response_holder'] = self._responses
+            completion = {}
+            if self.require_complete and 'completion' in sig.parameters:
+                stream_kwargs['completion'] = completion
             for text in self.provider.stream(messages,self.config,self.cancel,**stream_kwargs):
                 if self.cancel.is_set(): self.stopped_by_user.emit(); return
                 self.parts.append(text)
@@ -53,6 +57,8 @@ class _Worker(QThread):
                 self.delta_received.emit(text)
             if self.cancel.is_set(): self.stopped_by_user.emit()
             else:
+                if self.require_complete and (completion.get('reason') == 'length' or completion.get('complete') is False):
+                    raise ValueError('incomplete model output')
                 result = ''.join(self.parts)
                 if result.strip():
                     if self.memory_context is not None and not self.cancel.is_set():
@@ -110,10 +116,11 @@ class ChatService(QObject):
         return not any(worker.isRunning() for worker in self._workers)
     @property
     def busy(self): return self._worker is not None and self._worker.isRunning()
-    def send(self,messages:list[dict[str,Any]],config:ProviderConfig,request_id=None,*,memory_context=None,output_limit=None):
+    def send(self,messages:list[dict[str,Any]],config:ProviderConfig,request_id=None,*,memory_context=None,output_limit=None,require_complete=False):
         self.stop(); rid=request_id or uuid.uuid4().hex; cancel=threading.Event(); worker=_Worker(self.provider,messages,config,cancel,memory_context); self._request_id=rid; self._cancel=cancel; self._worker=worker
         self._workers.add(worker)
         worker.output_limit = output_limit
+        worker.require_complete = require_complete
         worker.nonblocking_cancel = not self.notify_global
         worker.safe_errors = not self.notify_global
         worker.failure_info.connect(lambda info,rid=rid:self.failure_info.emit(rid, info) if self._current(rid) else None, Qt.QueuedConnection)

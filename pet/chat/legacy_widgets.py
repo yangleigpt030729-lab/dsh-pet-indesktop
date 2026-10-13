@@ -671,12 +671,18 @@ class ChatWindow(QDialog):
     def _apply_avatar_style(self, label: QLabel, color: str) -> None:
         label.setStyleSheet(f"background-color: {color}; color: #ffffff; border-radius: {label.width() // 2}px;")
 
+    def _character_name_changed(self, path, character_id, name):
+        from .display_name import changed
+        changed(self, path, character_id, name)
+
     def _apply_character_theme(self) -> None:
+        from .display_name import watch
+        watch(self)
         root = Path(__file__).resolve().parents[2] / "assets" / "characters"
         self._character_manifest = load_character_manifest(root, self.character_id)
         chat = self._character_manifest.get("chat", {})
         chat = chat if isinstance(chat, dict) else {}
-        self.character_name = str(self._character_manifest.get("name") or chat.get("name") or self.character_id)
+        self.character_name = self.config.character_display_name(self.character_id)
         self.accent_color = _safe_color(chat.get("theme_color"))
         self._base_accent = self.accent_color
         self.title_label.setText(f"{self.character_name} · AI 对话")

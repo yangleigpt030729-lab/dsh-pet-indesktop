@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta
 
-from .voice_chime_quotes import CHINESE_QUOTES, ENGLISH_QUOTES
+from .voice_chime_quotes import contextual_quotes
 
 # 调度模式键（设置页 ModernSelect 的 data 与此对应）。
 SCHEDULE_KEYS = (
@@ -348,6 +348,8 @@ def build_chime_text(now: datetime, cfg: dict) -> str:
     （0 点与 12 点都是「十二点」）。rate/pitch 为 TTS 参数、音量在播放侧，
     都不进入正文。
     """
+    if not str(cfg.get("voice", DEFAULT_VOICE)).lower().startswith("zh"):
+        return f"It is {now.hour:02d}:{now.minute:02d}."
     hour_12 = now.hour % 12 or 12
     hour_cn = _HOUR_CN[hour_12 % 12]
     period = _period_cn(now.hour)
@@ -418,7 +420,10 @@ def pick_quote(now: datetime, cfg: dict) -> str:
     """
     chinese = str(cfg.get("voice", DEFAULT_VOICE)).lower().startswith("zh")
     custom = clean_custom_quotes(cfg.get("custom_quotes_zh" if chinese else "custom_quotes_en"))
-    pool = custom or (CHINESE_QUOTES if chinese else ENGLISH_QUOTES)
+    if not custom:
+        pool = contextual_quotes(now.hour, english=not chinese)
+        return pool[(now.date().toordinal() + chime_index_in_day(now, cfg)) % len(pool)]
+    pool = custom
     if not pool:
         return ""
     order = quote_day_order(pool, now.date().toordinal())
@@ -454,7 +459,7 @@ def build_bubble_sentence(now: datetime, cfg: dict) -> str:
     两者在同一时刻取到同一条台词，仅时间部分表示不同。``show_quote`` 关闭时
     只返回气泡报时文本。
     """
-    text = build_chime_bubble_text(now)
+    text = build_chime_bubble_text(now) if str(cfg.get("voice", DEFAULT_VOICE)).lower().startswith("zh") else f"It is {now.hour:02d}:{now.minute:02d}."
     if not clean_flag(cfg.get("show_quote", DEFAULT_SHOW_QUOTE), DEFAULT_SHOW_QUOTE):
         return text
     quote = pick_quote(now, cfg)
