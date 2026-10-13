@@ -64,9 +64,14 @@ def install_fake_chat():
         recent = getattr(channel, '_acceptance_speech', [])
         channel._acceptance_speech = [*recent[-11:], str(sentence)]
         print('FAKE: synthetic speech requested; real audio NOT TESTED', flush=True)
+        from pet.speech_binding import finish
+        finish(valid, 'failed')  # no audio was played; release only the display hold
     VoiceChimeService._fire = fake_fire
     def fake_play(channel, path, *, valid=None, **kwargs):
-        return valid is None or valid()  # No player or native device is started.
+        accepted = valid is None or valid()
+        from pet.speech_binding import finish
+        finish(valid, 'failed')
+        return accepted  # No player or native device is started.
     VoiceChimeService._play_only = fake_play
     # Scheduled precaching bypasses _fire; also keep that original path offline.
     _TTSWorker.start = lambda worker: worker._on_done(str(worker._out_path), worker._text, 'Fake不进行真实语音合成')

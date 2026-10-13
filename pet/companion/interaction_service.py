@@ -238,7 +238,8 @@ class InteractionService(QObject):
                 def valid():
                     service = owner()
                     return bool(service is not None and shiboken6.isValid(service) and not service.closed and service.generation == generation
-                        and service.clock() < expires and target.valid() and target.identity() == identity
+                        and (service.clock() < expires or getattr(getattr(valid, "speech_task", None), "state", None) == "playing")
+                        and target.valid() and target.identity() == identity
                         and permission_stamp(target.config()) == consent
                         and enabled(target.config(), KIND_KEYS[kind]) and speech_enabled(target.config()))
                 if hasattr(target, 'host_ref'):

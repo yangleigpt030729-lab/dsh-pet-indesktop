@@ -260,6 +260,7 @@ class PetSpeechBubble(QFrame):
     # 气泡被隐藏（自动超时 / dismiss / 窗口隐藏）时发出，供上层在仍有
     # 待处理审批时自动恢复展示。
     hidden_signal = Signal()
+    presentation_replaced = Signal()
 
     def __init__(self, parent=None, style_id: str = "classic_top"):
         super().__init__(parent)
@@ -383,6 +384,9 @@ class PetSpeechBubble(QFrame):
         self._content_kind = "text"
         self._raw_text = ""
         self._text_presentation_id = 0
+        self._speech_hold = None
+        self._speech_remainder = 0
+        self._speech_finished_pages = False
         # 多行模式：保留调用方写好的换行（如"标题一行 + 内容一行"）。
         # 由 show_text 的 subtitle 是否有内容推导，避免为它增加公开参数。
         self._multi_line = False
@@ -619,6 +623,45 @@ class PetSpeechBubble(QFrame):
         return (self._text_presentation_id > after and self.isVisible()
                 and self._content_kind == 'text' and self._raw_text == str(text).strip())
 
+    def begin_speech(self, receipt, task):
+        if receipt != self.text_presentation_id or not self.isVisible() or not self._hide_timer.isActive():
+            return False  # sticky/interactive surfaces are owned by their original consumer.
+        self._speech_hold = (receipt, task)
+        self._speech_remainder = max(500, self._hide_timer.remainingTime())
+        self._hide_timer.stop()
+        return True
+
+    def speech_progress(self, receipt, task, duration, position):
+        if self._speech_hold != (receipt, task) or receipt != self.text_presentation_id:
+            return
+        if duration <= 0 or len(self._pages) < 2:
+            return  # Without media duration, the original page timer continues.
+        lengths = [max(1, len(p)) for p in self._pages]
+        boundary = duration * sum(lengths[:self._page_index+1]) / sum(lengths)
+        # Advance in order; never skip unread pages when duration arrives late.
+        if position >= boundary and self._page_index < len(self._pages)-1:
+            self._on_page_timeout()
+        elif self._page_index < len(self._pages)-1:
+            self._page_timer.start(max(500, int(boundary-position)))
+
+    def end_speech(self, receipt, task, completed):
+        if self._speech_hold != (receipt, task) or receipt != self.text_presentation_id:
+            return
+        self._speech_hold = None
+        if not self.isVisible():
+            return
+        if not completed:
+            self._hide_timer.start(max(500, self._speech_remainder))
+        elif self._pages:
+            # Finish displaying all remaining pages, even for unusually short audio.
+            self._speech_finished_pages = True
+            if self._page_index == len(self._pages)-1:
+                self._hide_timer.start(1500)
+            elif not self._page_timer.isActive():
+                self._page_timer.start(1000)
+        else:
+            self.dismiss()
+
     def show_text(
         self,
         text: str,
@@ -654,6 +697,9 @@ class PetSpeechBubble(QFrame):
         # show_text 覆盖这里，视觉上文字还在，但按钮已被 teardown。
         if self._interactive_active and not interactive:
             return
+        self.presentation_replaced.emit()
+        self._speech_hold = None
+        self._speech_finished_pages = False
         self._content_kind = "text"
         self._raw_text = text
         # 带 subtitle 的气泡是"标题 + 内容"结构，正文里可能自带换行，
@@ -988,6 +1034,8 @@ class PetSpeechBubble(QFrame):
             self._flip_to_page(self._page_index)
             if self._page_index < len(self._page_dwells):
                 self._page_timer.start(self._page_dwells[self._page_index])
+            if self._speech_finished_pages and self._page_index == len(self._pages)-1:
+                self._hide_timer.start(max(1500, self._page_dwells[self._page_index]))
 
     def show_image(
         self,
@@ -1005,6 +1053,9 @@ class PetSpeechBubble(QFrame):
             pixmap = QPixmap(str(image_path))
         if pixmap.isNull():
             return False
+        self.presentation_replaced.emit()
+        self._speech_hold = None
+        self._speech_finished_pages = False
         self._content_kind = "image"
         self._raw_text = ""
         self._source_pixmap = pixmap

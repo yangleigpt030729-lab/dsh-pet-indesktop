@@ -37,6 +37,7 @@ class FestivalReminderService:
         from PySide6.QtCore import QTimer
 
         self._app = app
+        self._stopped = False
         # 契约形状由纯逻辑层定义（enabled/cn/solar_terms/west/mode/count/times/...）
         self._cfg: dict = normalize_festival_config(None)
         # 当天已触发的槽位；跨天自动清空（槽位本身含日期，这里只是防集合无界增长）
@@ -48,11 +49,13 @@ class FestivalReminderService:
 
     # ------------------------------------------------------------ 生命周期
     def start(self) -> None:
+        self._stopped = False
         self.apply_config()
         self._catch_up()
         self._timer.start()
 
     def stop(self) -> None:
+        self._stopped = True
         self._timer.stop()
 
     def is_running(self) -> bool:
@@ -179,7 +182,12 @@ class FestivalReminderService:
             logger.warning("音频通道为空，节日提醒仅出气泡")
             return
         try:
-            channel.speak(text, log_tag="节日提醒")
+            from .speech_binding import bind_displayed
+            win = getattr(self._app, "win", None)
+            ticket = bind_displayed(win, text, lambda: not self._stopped and self._cfg.get("speak", False)) if win is not None else None
+            options = {"valid": ticket} if ticket is not None else {}
+            if channel.speak(text, log_tag="节日提醒", **options) is False and ticket is not None:
+                ticket.finish("failed")
         except Exception:
             logger.exception("节日提醒语音播报失败")
 

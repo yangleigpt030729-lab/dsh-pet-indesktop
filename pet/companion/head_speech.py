@@ -3,7 +3,6 @@
 The historical module/key remain compatible. A ticket belongs to one accepted
 bubble generation and is checked again by the existing audio channel before play.
 """
-import time
 import json
 import weakref
 import shiboken6
@@ -58,7 +57,7 @@ def wanted(shell):
                           or (cfg.get('file_interpret') or {}).get('enabled', True))))
         active = speech_enabled(cfg, active=True) and (cfg.get('todo_reminder_enabled', True)
             or (chat and ((cfg.get('proactive_chat') or {}).get('enabled', False)
-                          or (cfg.get('proactive_screen') or {}).get('enabled', False))))
+                          or chat)))
         if passive or active:
             return True
     return False
@@ -122,7 +121,8 @@ def speech_request(target, text, valid, *, active=False):
     if not valid() or not target.valid():
         return
     config = target.config()
-    if not speech_enabled(config, active=active):
+    from ..voice_volume import effective
+    if not speech_enabled(config, active=active) or effective(config) == 0:
         return
     host = target.host_ref()
     sprite = target.sprite_ref() if target.sprite_ref else None
@@ -145,13 +145,13 @@ def speech_request(target, text, valid, *, active=False):
     epoch = bubble._companion_speech_epoch
     bubble_ref = weakref.ref(bubble)
     identity, consent = speech_identity(config), permission_stamp(config, active=active)
-    expires = time.monotonic()+30
     def current():
         b = bubble_ref()
         return bool(b is not None and shiboken6.isValid(b) and valid() and target.valid()
-            and time.monotonic() < expires and speech_identity(target.config()) == identity
+            and speech_identity(target.config()) == identity
             and permission_stamp(target.config(), active=active) == consent
-            and speech_enabled(target.config(), active=active) and b._companion_speech_epoch == epoch
+            and speech_enabled(target.config(), active=active) and effective(target.config()) > 0
+            and b._companion_speech_epoch == epoch
             and b.text_presentation_id == receipt and b.text_was_presented(text, receipt-1))
     if not current():
         return
@@ -166,7 +166,14 @@ def speech_request(target, text, valid, *, active=False):
             return
         bubble._companion_spoken_receipt = receipt
         try:
-            speaker(text, valid=current, config=config)
+            from ..speech_binding import SpeechTicket
+            ticket = SpeechTicket(bubble, receipt, current)
+            try:
+                valid.speech_task = ticket
+            except AttributeError:
+                pass
+            if speaker(text, valid=ticket, config=config) is False:
+                ticket.finish('failed')
         except Exception:
             import logging
             logging.getLogger('dsh-pet-standalone').warning('陪伴朗读失败；保留文字气泡')
