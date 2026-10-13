@@ -16,10 +16,14 @@ class PromptBuilder:
     def __init__(self,characters_root=None): self.characters_root=Path(characters_root) if characters_root else None
     def effective_system_prompt(self,settings,character_id,role_prompt=None):
         if role_prompt and role_prompt.strip(): return role_prompt.strip()
+        configured = settings.default_system_prompt.strip()
+        default = ChatSettings().default_system_prompt
+        # Existing configs prefill the built-in text; it is not a user override.
+        if configured and configured != default: return configured
         if self.characters_root:
             prompt=load_character_prompt(self.characters_root,character_id)
             if prompt.strip(): return prompt.strip()
-        return settings.default_system_prompt.strip()
+        return configured or default
     def build_messages(self,settings,character_id,history,user_text,role_prompt=None,*,memory=None):
         result = [{'role':'system','content':self.effective_system_prompt(settings,character_id,role_prompt)},*({'role':m.role,'content':m.content} for m in self.trim_history(history,settings.history_message_limit,settings.history_char_limit)),{'role':'user','content':user_text.strip()}]
         quoted = memory_message(memory or []) if getattr(settings, 'memory_enabled', False) else None

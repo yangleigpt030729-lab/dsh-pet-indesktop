@@ -1,5 +1,9 @@
 # Desktop Pet Experience
 
+## Saved AI persona precedence (2026-10-13)
+
+PromptBuilder resolves explicit call override → saved nonblank user prompt differing from factory text → character manifest default → factory fallback. Empty/factory text means no user override, including existing configurations. All chat/proactive/head/feeding requests share this resolver; expression style remains subordinate and privacy/task guards remain intact. Changing the saved persona invalidates old ordinary-chat requests/typewriter output through existing settings refresh, while retaining history. No new editor, preset, schema or companion restructuring. See [persona closeout](docs/PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md).
+
 ## Companion expression / speech / feeding increment (2026-10-13)
 
 The single head-touch toggle belongs to Interaction → Click & Sound, using the existing default-off key. Shared click speech opts displayed head replies into the existing VoiceChimeService only; ordinary click may remain off. Receipt/permission generation/role/style/expiry checks guard queued synthesis. Child slots supply their own style, voice and file-reading authorization. A small expression adapter preserves character prompts and never uploads custom fixed phrases. File feeding accepts all supported metadata types silently; content-reading confirmation/progress takes precedence over statistics/fun speech. Decline resumes stats then delayed metadata-only AI; explicit accept keeps the independent content session per actor. No automatic reading of nontext input. Fake records original speech callbacks offline. See [increment report](docs/PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md) and [Windows guide](docs/WINDOWS10-COMPANION-ACCEPTANCE.md).

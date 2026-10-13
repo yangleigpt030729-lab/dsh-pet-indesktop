@@ -136,6 +136,8 @@
 
 ## PR 报告存档
 
+- [PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md](PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md)：用户保存的AI人设优先、默认角色回退及聊天热更新/旧异步失效；复验System Prompt优先级前必读。
+
 - [PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md](PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md)：表达风格Prompt适配、摸头归入互动、原共享点击朗读与投喂/文本解读气泡协调；复测本轮Windows增量前必读。
 
 - [PR-REPORT-COMPANION-COMPLETE-2026-10-13.md](PR-REPORT-COMPANION-COMPLETE-2026-10-13.md)：P2-C可靠待办、可配置频控、P3/P4瞬时互动、P5整合/迁移/安全打包流程与最终集中验收；更新完整陪伴分支前必读。

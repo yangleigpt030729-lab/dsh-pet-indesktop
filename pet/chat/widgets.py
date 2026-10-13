@@ -1763,7 +1763,14 @@ class ChatWindow(QDialog):
             self._bottom()
 
     def refresh_settings(self) -> None:
-        self.settings = self.config.chat_settings()
+        settings = self.config.chat_settings()
+        persona_changed = self.settings.default_system_prompt.strip() != settings.default_system_prompt.strip()
+        self.settings = settings
+        if persona_changed:
+            self._active_request_id = None
+            self.service.stop()
+            self._reset()  # Also discard finished-network output still waiting in the typewriter.
+            self._load()  # Preserve saved history; remove the old in-flight placeholder.
         self.provider_label.setText(self.settings.active_config.model)
         self.provider_label.setToolTip(self.settings.active_config.model)
         self._apply_character_theme()
