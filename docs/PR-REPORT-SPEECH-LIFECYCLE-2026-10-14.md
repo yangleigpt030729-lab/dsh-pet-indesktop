@@ -135,4 +135,4 @@ Qt UI review：聊天头部只替换显示名并接收对应配置通知，无�
 
 ### Git及审查
 
-基线5556459；独立修复分支，源代码最后提交cf2cfd5，后续提交仅交付证据。未改main、未重建/发布安装包、未操作用户正式数据。远端与PR状态在最终交付回复中列出；GitHub API访问若继续403，不伪造PR编号，以独立分支及比较链接提供可审查结果。
+基线5556459；独立修复分支，源代码最后提交cf2cfd5，后续提交仅交付证据。未改main、未重建/发布安装包、未操作用户正式数据。修复分支已正常推送；创建PR请求 `POST https://api.github.com/graphql` 返回Forbidden（403），因此**没有PR编号、未创建PR**。使用[明确目标基线的比较链接](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/compare/feature%2Fwin10-companion-memory...fix%2Ftts-bubble-lifecycle-and-interactions?expand=1)审查/创建PR；不要求提供真实Token。基线及main均保持不变。
