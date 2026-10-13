@@ -184,7 +184,9 @@ class FestivalReminderService:
         try:
             from .speech_binding import bind_displayed
             win = getattr(self._app, "win", None)
-            ticket = bind_displayed(win, text, lambda: not self._stopped and self._cfg.get("speak", False)) if win is not None else None
+            before = getattr(self, "_bubble_receipt", None)
+            self._bubble_receipt = None
+            ticket = bind_displayed(win, text, lambda: not self._stopped and self._cfg.get("speak", False), after=before) if win is not None and before is not None else None
             options = {"valid": ticket} if ticket is not None else {}
             if channel.speak(text, log_tag="节日提醒", **options) is False and ticket is not None:
                 ticket.finish("failed")
@@ -204,11 +206,14 @@ class FestivalReminderService:
         丢弃即可，落地后正常。判据统一走 ``window_alerts`` 的门禁助手（惰性
         import：本模块顶层不 import Qt，见文件头）。
         """
+        self._bubble_receipt = None
         if not text:
             return
         from . import window_alerts
         app = self._app
         win = getattr(app, "win", None)
+        previous = getattr(win, "_speech_bubble", None)
+        before = previous.text_presentation_id if previous is not None else -1
         if win is not None and win.isVisible():
             if window_alerts.sprite_in_flight(win):
                 return
@@ -216,6 +221,7 @@ class FestivalReminderService:
             if not suppressed:
                 try:
                     win.show_bubble(text, duration_ms=self.BUBBLE_DURATION_MS)
+                    self._bubble_receipt = before
                     return
                 except Exception:
                     logger.exception("节日提醒气泡展示失败")
@@ -231,6 +237,7 @@ class FestivalReminderService:
                         pet_scale=scale,
                         subtitle="",
                     )
+                    self._bubble_receipt = before
                     return
             except Exception:
                 logger.exception("节日提醒气泡降级展示失败")

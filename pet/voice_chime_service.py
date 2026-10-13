@@ -796,14 +796,16 @@ class VoiceChimeService:
         （阿拉伯数字文本），未传时回退 ``text`（兼容旧调用与测试）。
         """
         shown = bubble_text if bubble_text is not None else text
+        win = getattr(self._app, 'win', None) if self._cfg.get('show_bubble', True) else None
+        previous = getattr(win, '_speech_bubble', None)
+        before = previous.text_presentation_id if previous is not None else -1
         self._bubble(shown)
         from .speech_binding import bind_displayed
-        win = getattr(self._app, 'win', None)
         initially_enabled = self._cfg.get('enabled', False)
         def valid():
             return (not self._stopped and self._cfg.get('show_bubble', True)
                     and (not initially_enabled or self._cfg.get('enabled', False)))
-        ticket = bind_displayed(win, shown, valid) if win is not None else None
+        ticket = bind_displayed(win, shown, valid, after=before) if win is not None else None
         self._play_only(path, valid=ticket)
 
     def _play_only(self, path: str, *, valid=None, config=None) -> bool:

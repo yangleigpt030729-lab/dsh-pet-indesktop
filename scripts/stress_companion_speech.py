@@ -16,6 +16,9 @@ if __name__ == '__main__':
         for number in range(3):
             print(f'COMPANION SPEECH ROUND {number+1}: 4 CPU burners', flush=True)
             subprocess.run([sys.executable, '-m', 'pytest', '-q',
+                'tests/test_speech_binding.py', 'tests/test_manual_screen_speech.py',
+                'tests/test_companion_completion.py', 'tests/test_chat_display_name.py',
+                'tests/test_chime_time_context.py',
                 'tests/test_companion_dual_speech.py', 'tests/test_companion_head_speech.py',
                 'tests/test_voice_chime_service.py', 'tests/test_todo_delivery.py',
                 'tests/test_companion_proactive_service.py', 'tests/test_companion_interactions.py',

@@ -137,6 +137,8 @@
 
 ## PR 报告存档
 
+- [PR-REPORT-SPEECH-LIFECYCLE-2026-10-14.md](PR-REPORT-SPEECH-LIFECYCLE-2026-10-14.md)：独立修复分支的流式完整性、名称、报时、共享语音/分页生命周期与手动识屏证据；审查本轮修复时必读。
+- [WINDOWS10-SPEECH-LIFECYCLE-ACCEPTANCE.md](WINDOWS10-SPEECH-LIFECYCLE-ACCEPTANCE.md)：只运行修复源码、不重建安装包的 Windows10 隔离验收清单；本轮本地复验时必读。
 - [v1.0.0 Windows安装器封装](PR-REPORT-INSTALLER-V100-2026-10-14.md)：完整ZIP隐私及归档门禁、固定AppId/升级/卸载/自启保护；改安装器或准备Windows原生分发验收时必读。
 - [陪伴延迟与统一音量控制](PR-REPORT-COMPANION-LATENCY-VOLUME-2026-10-13.md)：识屏前置朗读、投喂50毫秒合并、音色表后台刷新和菜单/设置音量同步；改这些路径之前必读，Windows增量验收见指南§13。
 

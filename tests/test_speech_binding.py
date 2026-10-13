@@ -303,3 +303,31 @@ def test_stopped_then_end_status_in_same_media_transition_is_natural(tmp_path,mo
     service._on_media_status(media.status)
     QApplication.instance().processEvents()
     assert t.state=='completed' and not bubble.isVisible()
+
+
+def test_disabled_chime_bubble_does_not_bind_old_same_text_or_silence_audio(tmp_path,monkeypatch,bubble):
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    app.win._speech_bubble=bubble
+    bubble.show_text('现在09:00',QRect(100,100,100,100),5000)
+    service._cfg['show_bubble']=False
+    media=service._player=Media(service)
+    path=tmp_path/'cached.mp3';path.write_bytes(b'synthetic')
+    service._play_and_bubble(str(path),'现在是九点整','现在09:00')
+    assert media.plays==1 and bubble._speech_hold is None
+    assert bubble._hide_timer.isActive()
+
+
+def test_suppressed_festival_does_not_claim_previous_same_text(tmp_path,monkeypatch,bubble):
+    from pet.festival_service import FestivalReminderService
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    app.win._speech_bubble=bubble
+    app.ensure_audio_channel=lambda:service
+    bubble.show_text('合成节日提醒。',QRect(100,100,100,100),5000)
+    monkeypatch.setattr('pet.window_alerts.sprite_in_flight',lambda host:True)
+    festival=FestivalReminderService(app)
+    festival._cfg['speak']=True
+    festival._bubble('合成节日提醒。')
+    festival._speak('合成节日提醒。')
+    assert bubble._speech_hold is None and bubble._hide_timer.isActive()
+    assert len(_WorkerSpy.instances)==1  # independent voice behavior preserved
+    service.stop()

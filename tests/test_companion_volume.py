@@ -202,6 +202,9 @@ def test_volume_update_applies_to_queued_and_cached_audio(tmp_path, monkeypatch)
         wait(QApplication.instance(), lambda: not service._busy)
         assert service._audio_out.volumes[-1] == .61
         assert write(cfg, muted=True)
+        # The second recording must finish before its cached replay, rather
+        # than relying on a player double that reports idle while still loaded.
+        service._on_media_status('DONE')
         assert service.speak('合成第二句', valid=lambda: True, config=cfg)
         assert len(_WorkerSpy.instances) == 2  # same cached MP3, zero new synthesis
         assert service._audio_out.volumes[-1] == 0

@@ -31,7 +31,7 @@ class SpeechTicket(QObject):
         bubble.hidden_signal.connect(self.cancel)
         bubble.destroyed.connect(self._bubble_destroyed)
         bubble.presentation_replaced.connect(self.cancel)
-        if bubble.begin_speech(receipt, self.id):
+        if self() and bubble.begin_speech(receipt, self.id):
             self.watch.start()
             self.deadline.start(self.WAIT_MS)
         else:
@@ -117,13 +117,13 @@ def finish(valid, outcome):
         task.finish(outcome)
 
 
-def bind_displayed(host, text, valid):
+def bind_displayed(host, text, valid, *, after):
     """For independent chime/festival consumers, without companion opt-in coupling."""
     bubble = getattr(host, '_speech_bubble', None)
     if bubble is None or not shiboken6.isValid(bubble):
         return None
     receipt = bubble.text_presentation_id
-    if not bubble.text_was_presented(text, receipt-1):
+    if not bubble.text_was_presented(text, after):
         return None
     ref = weakref.ref(host)
     def current():
