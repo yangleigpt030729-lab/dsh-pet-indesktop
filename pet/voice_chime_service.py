@@ -834,6 +834,7 @@ class VoiceChimeService:
             finish(getattr(self, '_playing_guard', None), 'cancelled')
             self._playing_guard = valid
             self._playing_started = False
+            self._playback_serial = getattr(self, "_playback_serial", 0)+1
             self._audio_in_flight = True
             task = getattr(valid, 'speech_task', None)
             if task is not None:
@@ -863,10 +864,23 @@ class VoiceChimeService:
             from .speech_binding import phase
             self._playing_started = True
             phase(getattr(self, '_playing_guard', None), 'playing')
+            if hasattr(self._player, 'duration'):
+                self._on_audio_progress()
             self._timing('player_playing', self._player_requested_at)
         elif state == QMediaPlayer.PlaybackState.StoppedState and getattr(self, '_playing_started', False):
             if self._player.mediaStatus() != QMediaPlayer.MediaStatus.EndOfMedia:
-                self._finish_playback('cancelled')
+                from PySide6.QtCore import QTimer
+                serial = getattr(self, '_playback_serial', 0)
+                QTimer.singleShot(0, self._timer, lambda: self._settle_stopped(serial))
+
+    def _settle_stopped(self, serial):
+        from PySide6.QtMultimedia import QMediaPlayer
+        if (serial != getattr(self, '_playback_serial', 0) or not self._playing_started
+                or self._player.playbackState() != QMediaPlayer.PlaybackState.StoppedState):
+            return
+        if self._player.mediaStatus() != QMediaPlayer.MediaStatus.EndOfMedia:
+            self._finish_playback('cancelled')
+            self._drain_pending_speech()
 
     def _finish_playback(self, outcome):
         from .speech_binding import finish
@@ -888,6 +902,8 @@ class VoiceChimeService:
         QTimer.singleShot(0, self._timer, self._drain_pending_speech)
 
     def _drain_pending_speech(self):
+        if self._busy or getattr(self, "_audio_in_flight", False):
+            return
         pending, self._pending_speech = self._pending_speech, None
         options, self._pending_speech_options = self._pending_speech_options, {}
         if pending and not self._stopped:
@@ -900,7 +916,11 @@ class VoiceChimeService:
 
     def _on_player_error(self, *_args):
         self._finish_playback('failed')
-        self._on_media_status(getattr(self, '_terminal_statuses', (None, None))[-1])
+        statuses = getattr(self, '_terminal_statuses', ())
+        if statuses:
+            self._on_media_status(statuses[-1])
+        else:
+            self._drain_pending_speech()
 
     def _refresh_voices(self, valid):
         if not self._stopped and (valid is None or valid()):
@@ -926,7 +946,8 @@ class VoiceChimeService:
         if self._audio_out is not None:
             self._audio_out.setVolume(0.0 if muted else volume/100.0)
         if muted or volume == 0:
-            self._finish_playback('muted')
+            from .speech_binding import finish
+            finish(getattr(self, "_playing_guard", None), "muted")
 
     def _player_busy(self) -> bool:
         """音频通道当前是否正在出声（判断能否立即播报）。"""

@@ -439,7 +439,8 @@ def build_chime_sentence(now: datetime, cfg: dict) -> str:
     if not clean_flag(cfg.get("show_quote", DEFAULT_SHOW_QUOTE), DEFAULT_SHOW_QUOTE):
         return text
     quote = pick_quote(now, cfg)
-    return f"{text}。{quote}" if quote else text
+    separator = "。" if str(cfg.get("voice", DEFAULT_VOICE)).lower().startswith("zh") else " "
+    return f"{text}{separator}{quote}" if quote else text
 
 
 def build_chime_bubble_text(now: datetime) -> str:
@@ -463,7 +464,8 @@ def build_bubble_sentence(now: datetime, cfg: dict) -> str:
     if not clean_flag(cfg.get("show_quote", DEFAULT_SHOW_QUOTE), DEFAULT_SHOW_QUOTE):
         return text
     quote = pick_quote(now, cfg)
-    return f"{text}。{quote}" if quote else text
+    separator = "。" if str(cfg.get("voice", DEFAULT_VOICE)).lower().startswith("zh") else " "
+    return f"{text}{separator}{quote}" if quote else text
 
 
 def edge_rate_arg(rate) -> str:

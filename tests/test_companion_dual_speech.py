@@ -154,7 +154,14 @@ def test_actual_feed_statistics_silent_then_fun_reply_once_private_files_unchang
 @pytest.mark.parametrize('first_kind', ['head', 'feeding'])
 def test_busy_burst_has_one_request_and_bounded_merged_followup(tmp_path, first_kind):
     barrier = threading.Event()
-    provider = FakeProvider(['旧投喂结果应静默丢弃。', '合并后的新投喂结果。'], barrier=barrier)
+    second_started, second_release = threading.Event(), threading.Event()
+    class ControlledProvider(FakeProvider):
+        def stream(self, messages, config, cancel):
+            if self.calls:
+                second_started.set()
+                assert second_release.wait(10)
+            yield from super().stream(messages, config, cancel)
+    provider = ControlledProvider(['旧投喂结果应静默丢弃。', '合并后的新投喂结果。'], barrier=barrier)
     app, cfg, target, service = setup(tmp_path, provider)
     now = [10000.]
     service.clock = lambda: now[0]
@@ -167,15 +174,15 @@ def test_busy_burst_has_one_request_and_bounded_merged_followup(tmp_path, first_
         assert len(service.pending_feeds) == len(provider.calls) == 1
         assert service.pending_feeds[target.key]['metadata']['files'] == 1000
         barrier.set()
-        wait(app, lambda: not service.active and not service.chat.busy)
+        wait(app, second_started.is_set)
         assert not target.texts  # No old reply overwriting the new statistics.
-        now[0] += 2.01
-        service._flush_feeding()
+        second_release.set()
         wait(app, lambda: not service.busy)
         assert len(provider.calls) == 2 and target.texts == ['合并后的新投喂结果。']
         assert '"files": 1000' in '\n'.join(m['content'] for m in provider.calls[1][0])
     finally:
         barrier.set()
+        second_release.set()
         service.close()
 
 

@@ -18,6 +18,7 @@ class SpeechTicket(QObject):
         self.state = 'waiting'
         self.finished = False
         self.on_finish = None
+        self.destroying = False
         self.speech_task = self
         self.last_progress = time.monotonic()
         self.position = -1
@@ -28,7 +29,7 @@ class SpeechTicket(QObject):
         self.deadline.setSingleShot(True)
         self.deadline.timeout.connect(lambda: self.finish('timeout'))
         bubble.hidden_signal.connect(self.cancel)
-        bubble.destroyed.connect(self.cancel)
+        bubble.destroyed.connect(self._bubble_destroyed)
         bubble.presentation_replaced.connect(self.cancel)
         if bubble.begin_speech(receipt, self.id):
             self.watch.start()
@@ -52,6 +53,7 @@ class SpeechTicket(QObject):
         if state == 'playing':
             self.deadline.stop()  # A healthy long recording has no absolute duration cap.
             self.last_progress = time.monotonic()
+            self.bubble().speech_playing(self.receipt, self.id)
 
     def progress(self, duration, position):
         if not self():
@@ -68,12 +70,21 @@ class SpeechTicket(QObject):
         elif self.state == 'playing' and time.monotonic()-self.last_progress > self.STALL_S:
             self.finish('timeout')
 
+    def _bubble_destroyed(self):
+        # QObject.destroyed can run after QWidget teardown while isValid still
+        # reports true. Never call a widget method or re-delete its child here.
+        self.destroying = True
+        self.bubble = lambda: None
+        self.finish('cancelled')
+
     def cancel(self):
         self.finish('cancelled')
 
     def finish(self, outcome):
         if self.finished:
             return
+        if outcome == "completed" and not self():
+            outcome = "cancelled"
         self.finished = True
         self.state = outcome
         self.watch.stop()
@@ -83,14 +94,15 @@ class SpeechTicket(QObject):
             b.end_speech(self.receipt, self.id, outcome == 'completed')
             try:
                 b.hidden_signal.disconnect(self.cancel)
-                b.destroyed.disconnect(self.cancel)
+                b.destroyed.disconnect(self._bubble_destroyed)
                 b.presentation_replaced.disconnect(self.cancel)
             except (RuntimeError, TypeError):
                 pass
         if self.on_finish is not None:
             callback, self.on_finish = self.on_finish, None
             callback(outcome)
-        self.deleteLater()
+        if not self.destroying:
+            self.deleteLater()
 
 
 def phase(valid, state):
@@ -116,5 +128,8 @@ def bind_displayed(host, text, valid):
     ref = weakref.ref(host)
     def current():
         owner = ref()
-        return owner is not None and owner.isVisible() and valid()
+        from .voice_volume import effective
+        config = getattr(owner, "cfg", None)
+        return (owner is not None and owner.isVisible() and valid()
+                and (config is None or effective(config) > 0))
     return SpeechTicket(bubble, receipt, current)

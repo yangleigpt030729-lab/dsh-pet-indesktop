@@ -45,3 +45,19 @@ def test_interaction_accepts_complete_stream_only(tmp_path, monkeypatch, ending,
         assert (target.texts[0] == expected) is success
     finally:
         service.close()
+
+@pytest.mark.parametrize('size',[12,79,80])
+def test_head_budget_stays_local_and_complete_near_limit_is_preserved(tmp_path,size):
+    from tests.test_companion_proactive_service import FakeProvider
+    from pet.chat.models import ProviderConfig
+    sentence='好'*(size-1)+'。'
+    provider=FakeProvider([sentence])
+    app,cfg,target,service=setup(tmp_path,provider)
+    original=cfg.chat_settings().active_config.max_tokens
+    try:
+        service.request('head',target)
+        wait(app,lambda:not service.busy)
+        assert target.texts==[sentence] and provider.calls[0][1].max_tokens==256
+        assert cfg.chat_settings().active_config.max_tokens==original
+        assert ProviderConfig('default').max_tokens!=256
+    finally:service.close()

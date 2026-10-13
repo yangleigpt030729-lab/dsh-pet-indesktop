@@ -214,6 +214,10 @@ def test_child_original_voice_receives_own_voice_rate_pitch_volume_and_reuses_ca
         worker.finish()
         wait(h.app, lambda: not channel._busy)
         assert channel._player.plays == 1 and channel._audio_out.volumes[-1] == .23
+        # Complete the first clip before requesting a cached replay (one shared channel).
+        channel._terminal_statuses = ("END", "INVALID")
+        channel._playing_started = True
+        channel._on_media_status("END")
         # Dynamic cache uses the original voice/rate/pitch key and single player.
         assert VoiceChimeService.speak(channel, h.bubble._raw_text, valid=lambda: True, config=h.target.config())
         assert len(observed) == 1 and channel._player.plays == 2

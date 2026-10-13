@@ -631,6 +631,15 @@ class PetSpeechBubble(QFrame):
         self._hide_timer.stop()
         return True
 
+    def speech_playing(self, receipt, task):
+        if self._speech_hold != (receipt, task) or not self._pages:
+            return
+        # Pages may have advanced during synthesis. Replay their display from
+        # the beginning alongside this one full recording, without a new receipt.
+        self._page_index = 0
+        self._flip_to_page(0)
+        self._page_timer.start(self._page_dwells[0])
+
     def speech_progress(self, receipt, task, duration, position):
         if self._speech_hold != (receipt, task) or receipt != self.text_presentation_id:
             return
@@ -1035,7 +1044,7 @@ class PetSpeechBubble(QFrame):
             if self._page_index < len(self._page_dwells):
                 self._page_timer.start(self._page_dwells[self._page_index])
             if self._speech_finished_pages and self._page_index == len(self._pages)-1:
-                self._hide_timer.start(max(1500, self._page_dwells[self._page_index]))
+                self._hide_timer.start(1500)
 
     def show_image(
         self,

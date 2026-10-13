@@ -138,7 +138,9 @@ def test_actual_media_boundary_distinguishes_termination(tmp_path,monkeypatch,bu
     media.pos=4000
     service._on_audio_progress()
     if outcome=='natural':media.end()
-    elif outcome=='stop':media.stop()
+    elif outcome=='stop':
+        media.stop()
+        wait(QApplication.instance(),lambda:t.finished)
     elif outcome=='invalid':
         media.status=media.M.MediaStatus.InvalidMedia
         service._on_media_status(media.status)
@@ -208,3 +210,96 @@ def test_chime_bubble_and_festival_share_binding_without_companion_switch(tmp_pa
     service.apply_config()
     service._play_and_bubble(str(path),'audio only','must not show')
     assert not bubble.isVisible()
+
+
+def test_queue_wait_and_cache_play_release_only_their_own_actor(tmp_path,monkeypatch):
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    first,second=SpeechBubble(),SpeechBubble()
+    media=service._player=Media(service)
+    service._terminal_statuses=(media.M.MediaStatus.EndOfMedia,media.M.MediaStatus.InvalidMedia)
+    a=ticket(first,'先播放。')
+    b=ticket(second,'排队播放。')
+    try:
+        path=tmp_path/'local.mp3';path.write_bytes(b'synthetic cached')
+        service.play_file(str(path),valid=a,config=cfg)
+        service.speak('排队播放。',valid=b,config=cfg)
+        assert b.state=='queued' and not second._hide_timer.isActive()
+        media.end()
+        assert not first.isVisible() and second.isVisible()
+        assert len(_WorkerSpy.instances)==1
+        worker=_WorkerSpy.instances[-1]
+        worker.out_path.write_bytes(b'synthetic cached')
+        worker.finish()
+        wait(QApplication.instance(),lambda:not service._busy)
+        assert b.state=='playing' and media.plays==2
+        second._hide_timer.timeout.emit() if second._hide_timer.isActive() else None
+        assert second.isVisible()
+        media.end()
+        assert not second.isVisible()
+        # Re-display the same full reply and use exactly the existing cache key.
+        c=ticket(second,'排队播放。')
+        service.speak('排队播放。',valid=c,config=cfg)
+        assert len(_WorkerSpy.instances)==1 and media.plays==3
+        media.end()
+        assert c.state=='completed'
+    finally:
+        service.stop();first.dismiss();second.dismiss()
+
+
+def test_unexpected_late_synthesis_cannot_consume_new_guard(tmp_path,monkeypatch,bubble):
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    old=ticket(bubble,'旧任务。')
+    service.speak('旧任务。',valid=old,config=cfg)
+    first=_WorkerSpy.instances[-1]
+    service._busy_since=-1000000
+    service._release_stale_busy()
+    new=ticket(bubble,'新任务。')
+    service.speak('新任务。',valid=new,config=cfg)
+    second=_WorkerSpy.instances[-1]
+    first.finish()
+    QApplication.instance().processEvents()
+    assert service._busy and service._speech_guard is new
+    assert channel_plays(service)==0 and new()
+    second.finish(error='synthetic failure')
+    wait(QApplication.instance(),lambda:not service._busy)
+    assert new.state=='failed'
+
+
+def channel_plays(service):
+    return service._player.plays
+
+
+def test_destroyed_bubble_releases_playing_task(tmp_path,monkeypatch):
+    from PySide6.QtCore import QCoreApplication,QEvent
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    b=SpeechBubble()
+    media=service._player=Media(service)
+    t=ticket(b)
+    path=tmp_path/'cached.mp3';path.write_bytes(b'synthetic')
+    service.play_file(str(path),valid=t,config=cfg)
+    b.deleteLater()
+    QCoreApplication.sendPostedEvents(b,QEvent.Type.DeferredDelete)
+    assert t.finished and media.state==media.M.PlaybackState.StoppedState
+
+
+def test_permission_revoked_at_end_is_cancellation_not_normal_close(bubble):
+    allowed=[True]
+    t=ticket(bubble,valid=lambda:allowed[0])
+    t.phase('playing')
+    allowed[0]=False
+    t.finish('completed')
+    assert t.state=='cancelled' and bubble.isVisible() and bubble._hide_timer.isActive()
+
+
+def test_stopped_then_end_status_in_same_media_transition_is_natural(tmp_path,monkeypatch,bubble):
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    media=service._player=Media(service)
+    service._terminal_statuses=(media.M.MediaStatus.EndOfMedia,media.M.MediaStatus.InvalidMedia)
+    t=ticket(bubble)
+    path=tmp_path/'cached.mp3';path.write_bytes(b'synthetic')
+    service.play_file(str(path),valid=t,config=cfg)
+    media.stop()  # some backends emit state before their terminal status
+    media.status=media.M.MediaStatus.EndOfMedia
+    service._on_media_status(media.status)
+    QApplication.instance().processEvents()
+    assert t.state=='completed' and not bubble.isVisible()

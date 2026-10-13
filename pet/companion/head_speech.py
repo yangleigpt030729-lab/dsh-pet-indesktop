@@ -55,9 +55,9 @@ def wanted(shell):
             or cfg.get('self_talk_enabled', False)
             or (chat and (enabled(cfg, 'head_touch_enabled') or enabled(cfg, 'feeding_enabled')
                           or (cfg.get('file_interpret') or {}).get('enabled', True))))
-        active = speech_enabled(cfg, active=True) and (cfg.get('todo_reminder_enabled', True)
-            or (chat and ((cfg.get('proactive_chat') or {}).get('enabled', False)
-                          or chat)))
+        # Manual screen reading is available in chat builds even when automatic
+        # screen capture/ordinary greetings are disabled. Consent still defaults off.
+        active = speech_enabled(cfg, active=True) and (cfg.get('todo_reminder_enabled', True) or chat)
         if passive or active:
             return True
     return False
