@@ -22,3 +22,29 @@ def test_alias_updates_open_window_without_changing_session(tmp_path, monkeypatc
     finally:
         window.service.shutdown()
         window.close()
+
+
+def test_role_rename_still_saves_when_optional_chat_package_is_absent(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+    script = '''
+import importlib.abc,json,sys
+from pathlib import Path
+from pet.config import Config
+cfg=Config(base=Path(sys.argv[1]))
+class NoChat(importlib.abc.MetaPathFinder):
+    def find_spec(self,fullname,*args):
+        if fullname=='pet.chat' or fullname.startswith('pet.chat.'):
+            raise ModuleNotFoundError('synthetic no-chat build')
+for name in list(sys.modules):
+    if name=='pet.chat' or name.startswith('pet.chat.'):
+        del sys.modules[name]
+sys.meta_path.insert(0,NoChat())
+cfg.set_character_alias('shenshen','大肥鱼')
+assert json.loads(cfg.path.read_text(encoding='utf-8'))['character_aliases']['shenshen']=='大肥鱼'
+assert not any(name=='pet.chat' or name.startswith('pet.chat.') for name in sys.modules)
+'''
+    result=subprocess.run([sys.executable,'-X','utf8','-c',script,str(tmp_path/'no-chat')],
+                          cwd=Path(__file__).resolve().parents[1],capture_output=True,text=True,timeout=30)
+    assert result.returncode==0,result.stderr

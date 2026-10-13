@@ -672,11 +672,11 @@ class ChatWindow(QDialog):
         label.setStyleSheet(f"background-color: {color}; color: #ffffff; border-radius: {label.width() // 2}px;")
 
     def _character_name_changed(self, path, character_id, name):
-        from .display_name import changed
+        from ..character_names import changed
         changed(self, path, character_id, name)
 
     def _apply_character_theme(self) -> None:
-        from .display_name import watch
+        from ..character_names import watch
         watch(self)
         root = Path(__file__).resolve().parents[2] / "assets" / "characters"
         self._character_manifest = load_character_manifest(root, self.character_id)

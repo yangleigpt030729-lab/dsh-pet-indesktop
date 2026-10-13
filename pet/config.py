@@ -1491,7 +1491,7 @@ class Config:
         else:
             aliases.pop(character_id, None)
         if self.save():
-            from .chat.display_name import notify
+            from .character_names import notify
             notify(self, character_id, name)
 
     def character_display_name(self, character_id: str) -> str:
