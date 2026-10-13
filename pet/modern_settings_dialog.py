@@ -1310,12 +1310,11 @@ class ModernSettingsDialog(QDialog):
     def _update_click_self_talk_controls(self, enabled: bool) -> None:
         """点击自言自语（``click_self_talk``）的后续项显隐。
 
-        绑定与预缓存只跟普通点击；共享朗读在普通点击或摸头开启时显示。
+        绑定与预缓存只跟普通点击；被动互动朗读始终可见，不代替功能开关。
         """
         keys = ("click_self_talk_precache", "click_talk_bindings")
         self._set_setting_rows_visible(keys, enabled, dependency="click_self_talk")
-        head = getattr(self, 'companion_head_touch_check', None)
-        self._set_setting_rows_visible(('click_self_talk_speak',), bool(enabled or (head and head.isChecked())))
+        self._set_setting_rows_visible(('click_self_talk_speak',), True)
 
     def _update_island_controls(self, enabled: bool) -> None:
         settings_pet_controls._update_island_controls(self, enabled)

@@ -4,12 +4,21 @@ from .settings_widgets import SettingRow
 
 
 def select_target(dialog, target):
-    if target in ('摸头 AI', '点击与音效'):
+    if target in ('摸头 AI', '点击与音效', '被动互动朗读', '点击台词朗读'):
         from .settings_widgets import SettingsTabContainer
         dialog.select_page('互动')
         tabs = dialog.pages.currentWidget().findChild(SettingsTabContainer)
         if tabs is not None:
             tabs.setCurrentKey('click')
+        return True
+    if target in ('主动陪伴朗读', '主动 AI 陪伴'):
+        row = dialog.findChild(SettingRow, 'settingRow_proactive_chat_speak')
+        if row is None:
+            return False
+        dialog.select_page('AI 与对话')
+        scroll = dialog.pages.currentWidget().findChild(QScrollArea)
+        if scroll is not None:
+            scroll.ensureWidgetVisible(row, 0, 24)
         return True
     if target != '主动识屏':
         return False

@@ -136,6 +136,8 @@
 
 ## PR 报告存档
 
+- [陪伴双朗读与取消成功冷却](PR-REPORT-COMPANION-DUAL-SPEECH-2026-10-13.md)：两独立语音授权、原通道撤销、投喂顺序与待办接线；本轮Windows复测前必读。
+
 - [PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md](PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md)：用户保存的AI人设优先、默认角色回退及聊天热更新/旧异步失效；复验System Prompt优先级前必读。
 
 - [PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md](PR-REPORT-COMPANION-EXPRESSION-SPEECH-FEED-2026-10-13.md)：表达风格Prompt适配、摸头归入互动、原共享点击朗读与投喂/文本解读气泡协调；复测本轮Windows增量前必读。

@@ -235,7 +235,10 @@ def test_click_uses_bound_talk_text_for_current_anim_and_speaks(tmp_path):
         bindings={"click1": ["绑定台词"]},
     )
     spoken: list[str] = []
-    shell.on_self_talk_speak = spoken.append
+    def record(text, *, valid, config):
+        assert valid() and config.get('self_talk_speak_enabled')
+        spoken.append(text)
+    shell.on_self_talk_speak = record
     try:
         shell.overlay.show()
         _click_sprite(shell)

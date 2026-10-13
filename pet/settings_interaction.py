@@ -66,8 +66,8 @@ def build_click_rows(dialog) -> list[SettingRow]:
             SettingRow("click_self_talk", "点击触发自言自语", "普通点击时随机显示一条自言自语内容；与摸头 AI 独立开关。", dialog.click_self_talk_check),
             SettingRow(
                 "click_self_talk_speak",
-                "点击台词朗读",
-                "开启后朗读点击自言自语及摸头 AI 的已展示文字；复用语音报时通道。动态回复未命中缓存时使用原在线合成。",
+                "被动互动朗读",
+                "朗读已展示的摸头、点击/定时自言自语与趣味投喂文字；图片和投喂统计无声。复用原缓存与在线语音合成服务，待朗读文字可能发往该服务。",
                 dialog.click_self_talk_speak_check,
             ),
             SettingRow(

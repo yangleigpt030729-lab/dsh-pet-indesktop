@@ -117,6 +117,7 @@ RELOAD_WHITELIST_SNAPSHOT = frozenset(
         "self_talk_max_interval",
         "self_talk_min_interval",
         "self_talk_speak_enabled",
+        "proactive_bubble_speak_enabled",
         "self_talk_texts",
         "self_talk_voice_precache_enabled",
         "settings_process_isolation",

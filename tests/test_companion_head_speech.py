@@ -27,7 +27,7 @@ def test_single_head_row_moves_to_click_tab_and_shared_speech_visibility_persist
         assert dialog.select_page('摸头 AI') and tabs.currentKey() == 'click'
         assert Config(base=tmp_path).get('companion_interaction')['head_touch_enabled'] is True
         dialog.companion_head_touch_check.setChecked(False)
-        assert row.isHidden()
+        assert not row.isHidden()
         dialog.click_self_talk_check.setChecked(True)
         assert not row.isHidden()
         dialog._search_settings('摸头')
@@ -115,11 +115,10 @@ def test_real_head_receipt_routes_exactly_once_through_original_shared_reader(tm
             assert h.shell.ensure_audio_channel() is channel  # Chime/festival/head share this one object.
         else:
             assert channel is None
-        service.cooldowns.clear()
         assert service.request('feeding', h.target, {'categories': {'image': 1}, 'files': 1})
         wait(h.app, lambda: not service.busy)
         if speak:
-            assert len(channel._acceptance_speech) == 1  # Feeding never opts into head speech.
+            assert len(channel._acceptance_speech) == 2  # The passive switch also controls feeding.
         assert not list(h.cfg.dir.glob('*sessions*')) and not list(h.cfg.dir.glob('*memory*'))
 
 
@@ -180,7 +179,6 @@ def test_head_unshown_and_tts_error_keep_bubble_and_do_not_double_speak(tmp_path
         _WorkerSpy.instances[0].finish(error='simulated offline')
         wait(h.app, lambda: not channel._busy)
         assert h.bubble._raw_text == text and channel._player.plays == 0
-        service.cooldowns.clear()
         monkeypatch.setattr(h.host, 'show_bubble', lambda *a, **k: None)
         assert service.request('head', h.target)
         wait(h.app, lambda: not service.busy)
@@ -263,7 +261,7 @@ def test_no_chat_capability_has_no_head_control_or_extra_voice_channel(tmp_path)
     dialog = ModernSettingsDialog(cfg, include_ai=False)
     try:
         assert not dialog.findChildren(SettingRow, 'settingRow_companion_head_touch_enabled')
-        assert dialog.findChild(SettingRow, 'settingRow_click_self_talk_speak').isHidden()
+        assert not dialog.findChild(SettingRow, 'settingRow_click_self_talk_speak').isHidden()
         assert not wanted(SimpleNamespace(config=cfg, enable_chat=False))
     finally:
         dialog.deleteLater()

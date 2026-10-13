@@ -40,7 +40,21 @@ def present(shell, text):
     if not snapshot(shell).allowed:
         return False
     target = host(shell)
-    return target.try_show_bubble(text) if target is not None else False
+    shown = target.try_show_bubble(text) is True if target is not None else False
+    if shown:
+        import weakref
+        shell._companion_presented_host = weakref.ref(target)
+    return shown
+
+
+def speak_delivered(shell, text):
+    from .head_speech import speak_displayed
+    target = getattr(shell, '_companion_presented_host', lambda: None)()
+    service = getattr(shell, 'companion_service', None)
+    generation = service.generation if service is not None else None
+    if target is not None:
+        speak_displayed(target, text, active=True, valid=lambda: service is None or
+            (not service.closed and service.generation == generation))
 
 
 def sync(shell):
@@ -54,6 +68,7 @@ def sync(shell):
         from .proactive_service import ProactiveService
         service = ProactiveService(shell.config, lambda: snapshot(shell), lambda text: present(shell, text))
         shell.companion_service = service
+        service.delivered.connect(lambda text: speak_delivered(shell, text))
         install_interaction_filter(shell, service)
     if service:
         service.apply_config()

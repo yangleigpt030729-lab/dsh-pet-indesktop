@@ -281,7 +281,7 @@ def test_click_speech_alone_asks_for_the_audio_channel():
         return AppShell._self_talk_speak_wanted(_Shell(**values))
 
     assert wanted(self_talk_speak_enabled=True, click_show_self_talk=True, self_talk_enabled=False) is True
-    assert wanted(self_talk_speak_enabled=True, click_show_self_talk=False, self_talk_enabled=True) is False
+    assert wanted(self_talk_speak_enabled=True, click_show_self_talk=False, self_talk_enabled=True) is True
     assert wanted(self_talk_speak_enabled=False, click_show_self_talk=True, self_talk_enabled=True) is False
     # 键缺失（老配置）→ 缺省为关，不因"读不到"就白建音频通道
     assert wanted(click_show_self_talk=True, self_talk_enabled=True) is False

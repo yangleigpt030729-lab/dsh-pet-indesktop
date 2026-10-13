@@ -1,5 +1,9 @@
 # Desktop Pet Experience
 
+## Independent accompaniment speech (2026-10-13)
+
+Successful head/feed requests have no timed cooldown. Busy head gestures animate without enqueueing; feeding retains a bounded per-actor metadata merge and the two-second statistics-first coordination. A newer feed suppresses an older same-actor interaction result. The separate 120-second model failure backoff remains. Existing `self_talk_speak_enabled` becomes passive interaction speech (head, click/periodic text, fun feeding); the new default-off `proactive_bubble_speak_enabled` covers delivered ordinary proactive and Todo text bubbles. Both opt-ins reuse one original audio channel/cache/worker/player, with exact receipt, hide epoch, identity, permission, expiry and task guards. Images/statistics/notification-only/errors stay silent. Todo delivery records are unchanged; the optional guarded speech is deferred after the original receipt bookkeeping. See [dual speech report](docs/PR-REPORT-COMPANION-DUAL-SPEECH-2026-10-13.md) and [Windows guide §10](docs/WINDOWS10-COMPANION-ACCEPTANCE.md). Prior Windows Fake concentrated acceptance was reported PASS by the user; this increment and real DeepSeek/Edge/native audio still require separate acceptance.
+
 ## Saved AI persona precedence (2026-10-13)
 
 PromptBuilder resolves explicit call override → saved nonblank user prompt differing from factory text → character manifest default → factory fallback. Empty/factory text means no user override, including existing configurations. All chat/proactive/head/feeding requests share this resolver; expression style remains subordinate and privacy/task guards remain intact. Changing the saved persona invalidates old ordinary-chat requests/typewriter output through existing settings refresh, while retaining history. No new editor, preset, schema or companion restructuring. See [persona closeout](docs/PR-REPORT-CHAT-PERSONA-PRIORITY-2026-10-13.md).
@@ -134,7 +138,7 @@ presentations; paid attempts have a separate bounded budget. SQLite and model
 work stay off the GUI thread. A crash during the UI/SQLite handoff holds an
 ambiguous reservation conservatively. Explicit Todo delivery is independent;
 P2-C durable outbox and catchup are NOT IMPLEMENTED.
-_Avoid_: Proactive screen recognition, inferred scheduled tasks, proactive TTS
+_Avoid_: Proactive screen recognition, inferred scheduled tasks, automatic speech consent
 
 Proactive presentation receipts include a new accepted text generation, rather
 than an old widget visibility check. Proactive SQLite v2 binds settlement to its

@@ -771,7 +771,8 @@ class Config:
             "idle_low_fps_threshold": 30.0,  # 闲置阈值（秒）：超过该时长无交互且窗口可见才降帧
             "click_show_balance": False,  # 点击显示 DeepSeek 余额
             "click_show_self_talk": False,  # 点击随机显示自定义自言自语
-            "self_talk_speak_enabled": False,  # 点击自言自语同句朗读（复用语音报时音频通道，默认关）
+            "self_talk_speak_enabled": False,  # 被动互动朗读，兼容旧偏好
+            "proactive_bubble_speak_enabled": False,  # 主动陪伴/待办，在线语音需明确同意
             "self_talk_voice_precache_enabled": False,  # 台词/点击绑定本地语音预缓存（需本机 TTS 服务，默认关）
             "balance_refresh_minutes": 0,  # DeepSeek 余额自动刷新间隔（分钟，0=关闭）
             "balance_tier_labels_mode": "default",  # 峰谷提示文案：default / liangwen / custom
@@ -1054,6 +1055,7 @@ class Config:
             "click_show_balance",
             "click_show_self_talk",
             "self_talk_speak_enabled",
+            "proactive_bubble_speak_enabled",
             "self_talk_voice_precache_enabled",
             "balance_refresh_minutes",
             "autostart_wanted",
@@ -1337,6 +1339,7 @@ class Config:
         self.data["bubble_text_scale"] = int(_float_or_default(self.data.get("bubble_text_scale"), 100.0, 50.0, 300.0))
         self.data["self_talk_enabled"] = bool(self.data.get("self_talk_enabled", False))
         self.data["self_talk_speak_enabled"] = _bool_or_default(self.data.get("self_talk_speak_enabled"), False)
+        self.data["proactive_bubble_speak_enabled"] = _bool_or_default(self.data.get("proactive_bubble_speak_enabled"), False)
         self.data["self_talk_voice_precache_enabled"] = _bool_or_default(self.data.get("self_talk_voice_precache_enabled"), False)
         self.data["cursor_hidden_passthrough"] = _bool_or_default(self.data.get("cursor_hidden_passthrough"), True)
         self.data["spawn_inherit_size"] = _bool_or_default(self.data.get("spawn_inherit_size"), True)

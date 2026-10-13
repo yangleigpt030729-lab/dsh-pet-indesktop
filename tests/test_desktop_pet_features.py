@@ -1577,7 +1577,8 @@ def test_click_self_talk_rows_follow_their_own_toggle(tmp_path, monkeypatch):
         assert found is not None, key
         return found
 
-    click_side = ("click_self_talk_speak", "click_self_talk_precache", "click_talk_bindings")
+    click_side = ("click_self_talk_precache", "click_talk_bindings")
+    assert not row("click_self_talk_speak").isHidden()  # Independent passive voice also serves timers/feed.
 
     # 默认：顶层开关可见（否则功能无从发现），它的后续项跟随它 → 关着时隐藏
     assert not row("click_self_talk").isHidden()

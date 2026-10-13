@@ -118,7 +118,7 @@ def legacy_head(shell, win, point, press=None):
         win._start_squash()
         win._switch(win._pick(win.clicks))
     request(shell, 'head', Target(win))
-    return True  # Cooldown/model failure still consumes this head click, never ordinary speech.
+    return True  # Busy/model failure still consumes this head click, never ordinary speech.
 
 
 def overlay_head(shell, overlay, sprite, point, press):

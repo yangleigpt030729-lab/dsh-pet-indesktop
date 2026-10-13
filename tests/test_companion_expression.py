@@ -55,7 +55,6 @@ def test_style_change_discards_inflight_interaction_and_local_fallback_matches_b
         barrier.set()
         wait(app, lambda: not service.busy)
         assert target.texts == []
-        service.cooldowns.clear()
         service.backoff = service.clock()+120
         service.request(kind, target)
         wait(app, lambda: not service.busy)

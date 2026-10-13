@@ -359,7 +359,7 @@ PER_SLOT_SETTING_KEYS = frozenset({
     "self_talk_enabled", "self_talk_texts", "self_talk_duration_seconds",
     "self_talk_image_dir", "self_talk_image_scale", "self_talk_image_chance",
     "self_talk_min_interval", "self_talk_max_interval",
-    "self_talk_speak_enabled", "self_talk_bubble_style", "bubble_text_scale",
+    "self_talk_speak_enabled", "proactive_bubble_speak_enabled", "self_talk_bubble_style", "bubble_text_scale",
     "click_show_balance", "click_show_self_talk",
     "companion_interaction",
     "dialogue_mode", "dialogue_phrases",
@@ -405,6 +405,8 @@ class _SpriteConfig:
     def get(self, key, default=None):
         data = self._slot_data
         if data and key in PER_SLOT_SETTING_KEYS:
+            if key == 'proactive_bubble_speak_enabled' and key not in data:
+                return False  # An old child slot has no online-speech consent of its own.
             value = data.get(key)
             if value is not None:
                 return value

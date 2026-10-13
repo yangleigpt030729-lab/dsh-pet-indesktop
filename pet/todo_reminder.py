@@ -406,6 +406,7 @@ class TodoReminderService:
         if win is not None and win.isVisible() and not self._bubble_suppressed():
             present = getattr(win, 'try_show_bubble', None)
             if callable(present) and present(text, duration_ms=self.BUBBLE_DURATION_MS) is True:
+                self._speak_bubble(win, text, fire)
                 return True
         if not self._notify_enabled:
             return False
@@ -414,6 +415,31 @@ class TodoReminderService:
             return notify("待办提醒", f"{fire['title']}（{fire['time']}）",
                           on_click=getattr(app, "open_todo_panel", None)) is True
         return False
+
+    def _speak_bubble(self, win, text, fire):
+        from PySide6.QtCore import QTimer
+        from .companion.head_speech import speech_request, target_for_host
+        from .todo_delivery import signature
+        import weakref
+        owner, target, disk_ref = weakref.ref(self), weakref.ref(win), weakref.ref(self._disk)
+        generation = self._disk.generation
+        bubble = getattr(win, '_speech_bubble', None)
+        receipt = getattr(bubble, 'text_presentation_id', None)
+        def valid():
+            service, disk = owner(), disk_ref()
+            if service is None or disk is None or service._disk is not disk or disk.closed or disk.generation != generation:
+                return False
+            item = next((i for i in service._items if i['id'] == fire['id']), None)
+            return bool(receipt is not None and bubble.text_presentation_id == receipt
+                        and service._prefs['enabled'] and item and item['enabled']
+                        and signature(item) == fire['signature'] and not service._bubble_suppressed())
+        host = target()
+        try:
+            request = speech_request(target_for_host(host), text, valid, active=True)
+        except (AttributeError, RuntimeError):
+            request = None
+        if request is not None:
+            QTimer.singleShot(0, self._disk, request)
 
     def _bubble_suppressed(self) -> bool:
         """设置窗口打开期间暂停气泡（与 PetInstance._update_bubble_suppression_for_settings

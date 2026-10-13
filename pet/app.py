@@ -1376,8 +1376,8 @@ class AppShell:
     def _self_talk_speak_wanted(self) -> bool:
         """点击自言自语朗读是否开启——它同样复用报时服务的音频通道。
 
-        普通点击或摸头 AI 任一需要朗读时保留原通道；读取实际目标配置。
-        周期气泡仍只显示文字，不强制开启普通点击。
+        任一陪伴消费者需要朗读时保留原通道；读取实际目标配置。
+        被动与主动独立开关，均不强制开启普通点击。
         """
         from .companion.head_speech import wanted
         return wanted(self)

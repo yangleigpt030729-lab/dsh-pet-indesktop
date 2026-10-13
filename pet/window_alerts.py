@@ -473,13 +473,13 @@ def show_random_self_talk(host) -> bool:
     if kind == "image":
         # 图片气泡没有可朗读的文本：显式记 None，点击路径据此保持安静。
         host._last_self_talk_text = None
-        return host._speech_bubble.show_image(
-            value,
-            anchor,
-            duration_ms,
-            pet_scale=host.scale,
-            image_scale=host._self_talk_image_scale,
-        )
+        shown = host._speech_bubble.show_image(
+            value, anchor, duration_ms, pet_scale=host.scale,
+            image_scale=host._self_talk_image_scale)
+        if not shown and host._self_talk_texts:
+            host._last_self_talk_text = host._self_talk_texts[0]
+            return host._show_self_talk_text(host._last_self_talk_text)
+        return shown
 
     host._last_self_talk_text = value
     return host._show_self_talk_text(value)
@@ -519,6 +519,16 @@ def speak_click_self_talk(host, text: str, *, valid=None, config=None) -> None:
         logging.getLogger("dsh-pet-standalone").exception("点击自言自语语音播报失败")
 
 
+def speak_shown_self_talk(host, text):
+    from .companion.head_speech import speak_displayed
+    # Real hosts carry a receipt; retain the old seam for simple external hosts.
+    bubble = getattr(host, '_speech_bubble', None)
+    if hasattr(bubble, 'text_presentation_id') or hasattr(host, '_shell'):
+        speak_displayed(host, text)
+    else:
+        speak_click_self_talk(host, text)
+
+
 def show_click_self_talk(host, click_name: str) -> bool:
     """优先播放当前点击动画绑定的台词；未绑定则回退全局随机自言自语。
 
@@ -535,7 +545,7 @@ def show_click_self_talk(host, click_name: str) -> bool:
         shown = host._show_random_self_talk()
         value = getattr(host, "_last_self_talk_text", None)
     if shown and value:
-        speak_click_self_talk(host, value)
+        speak_shown_self_talk(host, value)
     return shown
 
 
@@ -547,7 +557,11 @@ def on_self_talk_timeout(host) -> None:
         return
     displayed = False
     if host._self_talk_enabled and host.isVisible():
+        host._last_self_talk_text = None
         displayed = host._show_random_self_talk()
+        text = getattr(host, '_last_self_talk_text', None)
+        if displayed and text:
+            speak_shown_self_talk(host, text)
     host._schedule_self_talk(after_display=displayed)
 
 

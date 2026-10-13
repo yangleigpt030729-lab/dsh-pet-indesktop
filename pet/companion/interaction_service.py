@@ -49,7 +49,6 @@ class InteractionService(QObject):
         self.generation = self.jobs = 0
         self.closed = False
         self.active = None
-        self.cooldowns = {}
         self.backoff = 0
         self.recent = deque(maxlen=12)
         self.ready.connect(self._dispatch, Qt.QueuedConnection)
@@ -74,6 +73,8 @@ class InteractionService(QObject):
         if self.closed or not target.valid() or not enabled(target.config(), 'feeding_enabled'):
             return
         meta = safe_metadata(metadata)
+        if self.active and self.active['target'].key == target.key:
+            self.active['superseded'] = True  # New statistics own the bubble; finish the single flight quietly.
         old = self.pending_feeds.get(target.key)
         if old and old['identity'] == target.identity():
             previous = old['metadata']
@@ -96,7 +97,7 @@ class InteractionService(QObject):
                 self.pending_feeds.pop(key, None)
                 continue
             if (now < entry['not_before'] or self.jobs or self.active or self.chat.busy
-                    or target.manual_busy() or now < self.cooldowns.get(('feeding', key), 0)):
+                    or target.manual_busy()):
                 continue
             self.pending_feeds.pop(key, None)
             # Other targets awaiting their turn must not block this request.
@@ -140,12 +141,11 @@ class InteractionService(QObject):
         if not enabled(cfg, KIND_KEYS[kind]):
             return False
         now = self.clock()
-        key = (kind, target.key)
-        if self.busy or target.manual_busy() or now < self.cooldowns.get(key, 0):
+        # Successful completion has no timed cooldown. Busy head gestures are
+        # consumed without queueing; feeding has its separate bounded merge.
+        if self.busy or target.manual_busy():
             return False
-        self.cooldowns[key] = now+(10 if kind == 'head' else 20)
-        if len(self.cooldowns) > 200:
-            self.cooldowns = {k: v for k, v in self.cooldowns.items() if v > now}
+        self.generation += 1  # A new interaction revokes unplayed audio from the previous event.
         settings = cfg.chat_settings()
         character = str(cfg.get('character', ''))
         self.active = {'kind': kind, 'target': target, 'identity': target.identity(),
@@ -184,6 +184,10 @@ class InteractionService(QObject):
                 and style_context(t.config()) == r['style'] and enabled(t.config(), KIND_KEYS[r['kind']]))
 
     def _prepared(self, result):
+        if self.active and self.active.get('superseded'):
+            self.timer.stop()
+            self.active = None
+            return  # Keep the bounded merged followup; avoid an obsolete paid request.
         if not self._current():
             self.cancel()
             return
@@ -210,13 +214,13 @@ class InteractionService(QObject):
         self._submit(lambda: context.valid(), lambda valid: self._present(text) if valid else self.cancel())
 
     def _present(self, text):
-        if self._current() and self.active['target'].present(text):
+        if self._current() and not self.active.get('superseded') and self.active['target'].present(text):
             target, kind = self.active['target'], self.active['kind']
             identity, generation, expires = target.identity(), self.generation, self.clock()+30
             consent = self.active['consent']
             self.recent.append(text_key(text))
             self.delivered.emit(kind, text)
-            if kind == 'head':
+            if kind in KIND_KEYS:
                 from .head_speech import speech_enabled, speak_target
                 owner = weakref.ref(self)
                 def valid():
@@ -224,7 +228,7 @@ class InteractionService(QObject):
                     return bool(service is not None and shiboken6.isValid(service) and not service.closed and service.generation == generation
                         and service.clock() < expires and target.valid() and target.identity() == identity
                         and permission_stamp(target.config()) == consent
-                        and enabled(target.config(), 'head_touch_enabled') and speech_enabled(target.config()))
+                        and enabled(target.config(), KIND_KEYS[kind]) and speech_enabled(target.config()))
                 if hasattr(target, 'host_ref'):
                     speak_target(target, text, valid)
         self.timer.stop()

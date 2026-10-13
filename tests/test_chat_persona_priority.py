@@ -107,7 +107,7 @@ def companion(tmp_path, kind, provider):
         def submit():
             assert service.request(kind, target, {'files': 1, 'categories': {'image': 1}, 'path': 'PRIVATE-PATH', 'filename': 'PRIVATE-NAME'})
         def advance():
-            service.cooldowns.clear()
+            pass  # Successful interactions no longer need a clock/cooldown reset.
     return app, cfg, service, output, submit, advance
 
 

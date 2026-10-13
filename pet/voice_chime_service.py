@@ -556,7 +556,7 @@ class VoiceChimeService:
             if valid is None:
                 self._notify_missing_tts()
             else:
-                logger.warning('摸头文字保留；edge-tts 不可用，仅跳过朗读')
+                logger.warning('陪伴文字保留；edge-tts 不可用，仅跳过朗读')
             return
         bubble = bubble_text if bubble_text is not None else build_bubble_sentence(now, self._cfg)
         voice, note = resolve_voice(cfg["voice"])
@@ -592,7 +592,10 @@ class VoiceChimeService:
             self._queued_fire = (sentence, now, bubble_text, show_bubble, role)
             if valid is not None:
                 self._queued_fire += (valid, config)
-            logger.info("语音报时合成在飞，排队待补：%s", sentence[:20])
+            if valid is None:
+                logger.info("语音报时合成在飞，排队待补：%s", sentence[:20])
+            else:
+                logger.info("陪伴合成在飞，等待原有音频通道")
             return
         self._busy = True
         self._busy_since = time.monotonic()
@@ -651,7 +654,7 @@ class VoiceChimeService:
             return
         if error:
             if valid is not None:
-                logger.warning('摸头文字保留；朗读合成失败：%s', error)
+                logger.warning('陪伴文字保留；朗读合成失败')
                 return
             if error == EDGE_TTS_MISSING:
                 # 运行期才发现 edge-tts 缺失（顶层只做 find_spec 探测）：清掉可能

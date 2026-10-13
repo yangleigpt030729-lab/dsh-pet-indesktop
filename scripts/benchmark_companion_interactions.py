@@ -67,7 +67,7 @@ def main():
         rss = []
         process = psutil.Process()
         for n in range(200):
-            now[0] += 11
+            # Keep the clock fixed: successful requests may follow immediately.
             start = time.perf_counter()
             assert service.request('head', target)
             wait(app, lambda: not service.busy)
@@ -101,7 +101,7 @@ def main():
             directory_entries=5001, directory_ms=large_ms, directory_partial=large['partial'],
             burst_n=1000, burst_accepted=accepted, burst_ms=burst_ms,
             completed_n=200, synthetic_median_ms=statistics.median(costs), synthetic_max_ms=max(costs),
-            rss_warm_mib=rss[19], rss_last_mib=rss[-1], cooldown_keys=len(service.cooldowns),
+            rss_warm_mib=rss[19], rss_last_mib=rss[-1], pending_feed_targets=len(service.pending_feeds),
             recent_count=len(service.recent), workers_remaining=len(service.chat._workers)), indent=2))
 
 

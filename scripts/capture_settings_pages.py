@@ -148,7 +148,7 @@ def capture(args: argparse.Namespace) -> None:
             dialog.select_page('AI 与对话')
             page = dialog.pages.currentWidget()
             scroll = page.findChild(QScrollArea, 'settingsScroll')
-            for key in ('proactive_chat_enabled', 'companion_feeding_enabled'):
+            for key in ('proactive_chat_enabled', 'proactive_chat_speak', 'companion_feeding_enabled'):
                 row = dialog.findChild(SettingRow, 'settingRow_'+key)
                 if row is None or scroll is None:
                     raise RuntimeError(f'companion row unavailable: {key}')
