@@ -862,6 +862,10 @@ class VoiceChimeService:
 
     def _on_playback_state(self, state):
         from PySide6.QtMultimedia import QMediaPlayer
+        if self._player is None:
+            return
+        if hasattr(self._player, 'playbackState') and self._player.playbackState() != state:
+            return
         if state == QMediaPlayer.PlaybackState.PlayingState:
             from .speech_binding import phase
             self._playing_started = True
@@ -917,12 +921,30 @@ class VoiceChimeService:
             task.progress(self._player.duration(), self._player.position())
 
     def _on_player_error(self, *_args):
+        if self._player is None:
+            return
+        if hasattr(self._player, 'error'):
+            from PySide6.QtMultimedia import QMediaPlayer
+            if self._player.error() == QMediaPlayer.Error.NoError:
+                return
         self._finish_playback('failed')
         statuses = getattr(self, '_terminal_statuses', ())
         if statuses:
             self._on_media_status(statuses[-1])
         else:
             self._drain_pending_speech()
+
+    def _on_player_destroyed(self, *_args):
+        from .speech_binding import finish
+        self._player = None
+        self._finish_playback('failed')
+        finish(getattr(self, '_speech_guard', None), 'failed')
+        finish(self._pending_speech_options.get('valid'), 'failed')
+        queued = getattr(self, '_queued_fire', None)
+        if queued and len(queued) > 5:
+            finish(queued[5], 'failed')
+        self._pending_speech = self._queued_fire = None
+        self._pending_speech_options = {}
 
     def _refresh_voices(self, valid):
         if not self._stopped and (valid is None or valid()):
@@ -1004,6 +1026,7 @@ class VoiceChimeService:
             self._player.durationChanged.connect(self._on_audio_progress)
             self._player.positionChanged.connect(self._on_audio_progress)
             self._player.errorOccurred.connect(self._on_player_error)
+            self._player.destroyed.connect(self._on_player_destroyed)
             # 缓存终止态枚举，供 _on_media_status 判空时使用（见该方法的说明）。
             self._terminal_statuses = (
                 QMediaPlayer.MediaStatus.EndOfMedia,

@@ -331,3 +331,39 @@ def test_suppressed_festival_does_not_claim_previous_same_text(tmp_path,monkeypa
     assert bubble._speech_hold is None and bubble._hide_timer.isActive()
     assert len(_WorkerSpy.instances)==1  # independent voice behavior preserved
     service.stop()
+
+
+def test_native_player_destroyed_releases_owned_waiting_bubble(tmp_path,monkeypatch,bubble):
+    from PySide6.QtCore import QCoreApplication,QEvent
+    from pet.voice_chime_service import VoiceChimeService
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    service._player=None
+    assert VoiceChimeService._ensure_player(service)
+    player=service._player
+    t=ticket(bubble)
+    service._playing_guard=t
+    service._playing_started=True
+    t.phase('playing')
+    try:
+        player.deleteLater()
+        QCoreApplication.sendPostedEvents(player,QEvent.Type.DeferredDelete)
+        assert t.state=='failed' and bubble._hide_timer.isActive()
+        assert service._player is None
+    finally:
+        service._player=None  # fixture must not try to stop an already deleted native handle
+        service.stop()
+
+
+def test_old_playing_or_error_signal_cannot_settle_a_new_loading_task(tmp_path,monkeypatch,bubble):
+    service,app,cfg=_service(tmp_path,monkeypatch)
+    media=service._player=Media(service)
+    media.play=lambda:None  # the new source has not started yet
+    media.error=lambda:media.M.Error.NoError
+    t=ticket(bubble)
+    path=tmp_path/'cached.mp3';path.write_bytes(b'synthetic')
+    service.play_file(str(path),valid=t,config=cfg)
+    assert t.state=='loading'
+    service._on_playback_state(media.M.PlaybackState.PlayingState)
+    service._on_player_error(media.M.Error.ResourceError,'old source')
+    assert t.state=='loading' and t.deadline.isActive() and not t.finished
+    service.stop()
