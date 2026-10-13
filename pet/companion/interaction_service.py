@@ -51,6 +51,8 @@ class InteractionService(QObject):
         self.active = None
         self.backoff = 0
         self.recent = deque(maxlen=12)
+        self.timings = deque(maxlen=32)
+        self._feed_offered_at = {}
         self.ready.connect(self._dispatch, Qt.QueuedConnection)
         self.chat.finished.connect(self._result)
         self.chat.error.connect(self._error)
@@ -84,9 +86,11 @@ class InteractionService(QObject):
                                for k in CATEGORIES}, 'size_bucket': 'unknown'})
         if target.key not in self.pending_feeds and len(self.pending_feeds) >= 32:
             return
+        self._feed_offered_at.setdefault(target.key, time.monotonic())
         self.pending_feeds[target.key] = dict(target=target, metadata=meta, identity=target.identity(),
-                                             expires=self.clock()+30, not_before=self.clock()+2)
-        self.feed_timer.start(750)
+                                             expires=self.clock()+30)
+        if not self.feed_timer.isActive():
+            self.feed_timer.start(50)  # leading-edge micro-batch; never extend with each offer
 
     def _flush_feeding(self):
         now = self.clock()
@@ -95,8 +99,9 @@ class InteractionService(QObject):
             if (not target.valid() or target.identity() != entry['identity'] or now >= entry['expires']
                     or not enabled(target.config(), 'feeding_enabled')):
                 self.pending_feeds.pop(key, None)
+                self._feed_offered_at.pop(key, None)
                 continue
-            if (now < entry['not_before'] or self.jobs or self.active or self.chat.busy
+            if (self.jobs or self.active or self.chat.busy
                     or target.manual_busy()):
                 continue
             self.pending_feeds.pop(key, None)
@@ -133,6 +138,8 @@ class InteractionService(QObject):
         self.jobs = max(0, self.jobs-1)
         if not self.closed and generation == self.generation:
             callback(result)
+            if self.pending_feeds and not self.active and not self.jobs:
+                self.feed_timer.start(0)
 
     def request(self, kind, target, metadata=None):
         if kind not in KIND_KEYS or self.closed or not target.valid():
@@ -196,6 +203,8 @@ class InteractionService(QObject):
             return
         messages, provider, context = result
         self.active['context'] = context
+        if self.active['kind'] == 'feeding':
+            self._record_latency('feed_to_request', self.active['target'].key)
         self.rid = self.chat.send(messages, provider, memory_context=context, output_limit=256)
 
     def _result(self, rid, text):
@@ -219,6 +228,9 @@ class InteractionService(QObject):
             identity, generation, expires = target.identity(), self.generation, self.clock()+30
             consent = self.active['consent']
             self.recent.append(text_key(text))
+            if kind == 'feeding':
+                self._record_latency('feed_to_reply', target.key)
+                self._feed_offered_at.pop(target.key, None)
             self.delivered.emit(kind, text)
             if kind in KIND_KEYS:
                 from .head_speech import speech_enabled, speak_target
@@ -233,6 +245,16 @@ class InteractionService(QObject):
                     speak_target(target, text, valid)
         self.timer.stop()
         self.active = None
+        if self.pending_feeds:
+            self.feed_timer.start(0)
+
+    def _record_latency(self, stage, key):
+        started = self._feed_offered_at.get(key)
+        if started is not None:
+            elapsed = (time.monotonic()-started)*1000
+            self.timings.append((stage, elapsed))
+            import logging
+            logging.getLogger('dsh-pet-standalone').info('interaction_timing stage=%s duration_ms=%.2f', stage, elapsed)
 
     def _fallback(self):
         if not self.active:
@@ -256,6 +278,7 @@ class InteractionService(QObject):
         self.active = None
         self.feed_timer.stop()
         self.pending_feeds.clear()
+        self._feed_offered_at.clear()
 
     def close(self):
         if self.closed:

@@ -1924,7 +1924,13 @@ class AppShell:
             self._mark_settings_child(False)
 
     def _on_config_change_debounced(self) -> None:
+        from .voice_volume import VOLUME, MUTED
+        before = {k: v for k, v in self.config.data.items() if k not in (VOLUME, MUTED)}
         self.config.reload()
+        after = {k: v for k, v in self.config.data.items() if k not in (VOLUME, MUTED)}
+        if before == after:
+            self._last_config_signature = self._config_signature()
+            return  # event-driven volume binding updates audio; no task/animation reset
         try:
             self._apply_external_config_change()
         except Exception:

@@ -28,10 +28,8 @@ class Target:
 
     def identity(self):
         cfg = self.config()
-        try:
-            stamp = cfg.path.stat().st_mtime_ns
-        except OSError:
-            stamp = 0
+        from ..voice_volume import semantic_stamp
+        stamp = semantic_stamp(cfg)
         from .expression_style import context
         values = [str(cfg.dir), cfg.get('character'), cfg.get('companion_interaction'), cfg.chat_settings().to_dict(), stamp, context(cfg)]
         return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()

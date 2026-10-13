@@ -29,6 +29,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
+from collections import deque
 from pathlib import Path
 
 from .voice_chime import (
@@ -92,6 +93,10 @@ _VOICE_SUBSTITUTION_NOTICES: set[str] = set()
 _live_voices: frozenset[str] | None = None
 _live_voices_at = 0.0
 _voice_lock = threading.Lock()
+_refresh_thread = None
+_refresh_attempt_at = float("-inf")
+VOICE_REFRESH_RETRY_S = 900.0
+VOICE_REFRESH_TIMEOUT_S = 2.5
 
 
 def _bundled_voices() -> frozenset[str]:
@@ -130,6 +135,26 @@ def refresh_voice_list(*, force: bool = False, timeout: float = 10.0) -> frozens
         _live_voices = voices
         _live_voices_at = now
     return voices
+
+
+def request_voice_refresh():
+    """One throttled metadata worker after an authorized real synthesis; never await it."""
+    global _refresh_thread, _refresh_attempt_at
+    now = time.monotonic()
+    with _voice_lock:
+        if ((_refresh_thread is not None and _refresh_thread.is_alive())
+                or now-_refresh_attempt_at < VOICE_REFRESH_RETRY_S
+                or (_live_voices and time.time()-_live_voices_at < VOICE_LIST_TTL_S)):
+            return False
+        _refresh_attempt_at = now
+        def refresh():
+            started = time.monotonic()
+            result = refresh_voice_list(timeout=VOICE_REFRESH_TIMEOUT_S)
+            logger.info('speech_timing stage=voice_list_refresh duration_ms=%.2f success=%s',
+                        (time.monotonic()-started)*1000, result is not None)
+        _refresh_thread = threading.Thread(target=refresh, daemon=True, name='pet-voice-list')
+        _refresh_thread.start()
+    return True
 
 
 def resolve_voice(configured) -> tuple[str, str]:
@@ -180,8 +205,6 @@ class _TTSWorker(threading.Thread):
         self._on_done = on_done
 
     def run(self) -> None:  # noqa: D102
-        # 在线音色表顺手刷新（有网就更新缓存，失败无所谓）——只在这个后台线程里联网
-        refresh_voice_list()
         # 主音色反复失败（下架 / 限流 / 参数被拒）时退到默认音色再试一轮
         candidates = [self._voice]
         if self._voice != DEFAULT_VOICE:
@@ -211,6 +234,9 @@ class _TTSWorker(threading.Thread):
                             "音色 %s 合成失败，已改用默认音色 %s", self._voice, candidate
                         )
                     self._on_done(str(self._out_path), self._text, "")
+                    refresh = getattr(self, '_on_refresh', None)
+                    if getattr(self, '_used_sdk', False) and refresh is not None:
+                        refresh()  # queued back to GUI for current consent, then a bounded metadata worker
                     return
                 # 服务端「成功」但没给音频（0 字节）：也算失败，别留下空缓存
                 errors.append(f"{candidate} 第{attempt}次: 服务端未返回音频（空文件）")
@@ -238,7 +264,12 @@ class _TTSWorker(threading.Thread):
             rate=self._rate,
             pitch=self._pitch,
         )
-        await communicate.save(str(self._out_path))
+        self._used_sdk = True
+        started = time.monotonic()
+        try:
+            await communicate.save(str(self._out_path))
+        finally:
+            logger.info('speech_timing stage=tts_network duration_ms=%.2f', (time.monotonic()-started)*1000)
 
 
 class _AudioBridge:
@@ -256,9 +287,13 @@ class _AudioBridge:
         from PySide6.QtCore import QObject, Signal
 
         class _Signals(QObject):
+            refresh_requested = Signal(object)
             synthesized = Signal(str, str, str)  # path, text, error
 
         self.signals = _Signals()
+
+    def on_refresh(self, valid):
+        self.signals.refresh_requested.emit(valid)
 
     def on_synthesized(self, path: str, text: str, error: str) -> None:
         # 从后台线程调用：Qt 自动 queued 到 GUI 线程
@@ -320,6 +355,10 @@ class VoiceChimeService:
         self._bridge: _AudioBridge | None = None
         self._player = None
         self._audio_out = None
+        self._volume_binding = None
+        self._player_requested_at = 0.0
+        self.timings = deque(maxlen=32)
+        self._queued_speech_at = self._queued_fire_at = None
         # 合成在飞时被 busy 门拦下的待补播报（_fire 排队，_on_synthesized 补播）
         self._queued_fire: tuple | None = None
         self._timer = QTimer()
@@ -340,6 +379,10 @@ class VoiceChimeService:
         self._pending_speech_options = {}
         self._queued_fire = None
         self._timer.stop()
+        if self._volume_binding is not None:
+            self._volume_binding.changed.disconnect(self._hot_volume)
+            self._volume_binding.deleteLater()
+            self._volume_binding = None
 
     def is_running(self) -> bool:
         """调度 tick 是否在跑（AppShell 的懒启停门控据此决定重启还是只刷配置）。"""
@@ -397,6 +440,7 @@ class VoiceChimeService:
         if not stripped or (valid is not None and not valid()):
             return False
         if self._busy or self._player_busy():
+            self._queued_speech_at = time.monotonic()
             self._pending_speech = stripped
             self._pending_speech_options = {'valid': valid, 'config': config} if valid is not None else {}
             logger.info("%s：音频通道忙，已排队待播", log_tag)
@@ -421,7 +465,7 @@ class VoiceChimeService:
         if self._busy or self._player_busy():
             logger.info("%s：音频通道忙，本次本地播报跳过：%s", log_tag, target.name)
             return False
-        options = {'valid': valid, 'config': normalize_chime_config(config)} if valid is not None else {}
+        options = {'valid': valid, 'config': config} if valid is not None else {}
         return self._play_only(str(target), **options)
 
     # ------------------------------------------------------------ 调度
@@ -508,6 +552,7 @@ class VoiceChimeService:
         if self._bridge is None:
             self._bridge = _AudioBridge()
             self._bridge.signals.synthesized.connect(self._on_synthesized)
+            self._bridge.signals.refresh_requested.connect(self._refresh_voices)
         worker = _TTSWorker(
             sentence,
             self._cfg["voice"],
@@ -580,17 +625,21 @@ class VoiceChimeService:
         # 缓存命中（含预合成已完成）直接播放，零网络延迟；合成中不阻塞缓存播放。
         # 命中要求文件非空：失败的合成会留下 0 字节/半截文件，只判 exists() 会把
         # 它当成「已有缓存」→ 播出一声静音且再也不重新合成。
-        if _cache_hit(out_path):
+        lookup_at = time.monotonic()
+        cached = _cache_hit(out_path)
+        self._timing('cache_hit' if cached else 'cache_miss', lookup_at)
+        if cached:
             if show_bubble:
                 self._play_and_bubble(str(out_path), sentence, bubble)
             else:
-                options = {'valid': valid, 'config': cfg} if valid is not None else {}
+                options = {'valid': valid, 'config': config} if valid is not None else {}
                 self._play_only(str(out_path), **options)
             return
         if self._busy:
             # 合成在飞（多为本次报时的预合成）：排队待补，不得直接丢弃——
             # 到点回退即时合成正经此路径（_on_tick 在预合成未完成时调 _fire，
             # 被 busy 门挡死曾导致到点静默丢报时且 _last_slot 已盖戳不再重试）。
+            self._queued_fire_at = time.monotonic()
             self._queued_fire = (sentence, now, bubble_text, show_bubble, role)
             if valid is not None:
                 self._queued_fire += (valid, config)
@@ -603,7 +652,7 @@ class VoiceChimeService:
         self._busy_since = time.monotonic()
         self._synthesis_role = role
         self._speech_guard = valid
-        self._speech_config = cfg if valid is not None else None
+        self._speech_config = config if valid is not None else None
         self._pending_bubble = bubble if show_bubble else None
         # 本次合成有效：清掉上一次 stop() 留下的作废标记，
         # 否则新起的合成结果会被当成"迟到结果"丢弃。
@@ -611,6 +660,7 @@ class VoiceChimeService:
         if self._bridge is None:
             self._bridge = _AudioBridge()
             self._bridge.signals.synthesized.connect(self._on_synthesized)
+            self._bridge.signals.refresh_requested.connect(self._refresh_voices)
         worker = _TTSWorker(
             sentence,
             voice,
@@ -619,10 +669,12 @@ class VoiceChimeService:
             out_path,
             self._bridge.on_synthesized,
         )
+        worker._on_refresh = lambda: self._bridge.on_refresh(valid)
         worker.start()
 
     # ------------------------------------------------------------ 播放
     def _on_synthesized(self, path: str, text: str, error: str) -> None:
+        self._timing('synthesis_total', getattr(self, '_busy_since', time.monotonic()))
         role = self._synthesis_role
         self._synthesis_role = "play"
         self._busy = False
@@ -638,6 +690,8 @@ class VoiceChimeService:
         """补播被 busy 门拦下的排队播报（若有）；stop() 后一律丢弃。"""
         # getattr 守卫：object.__new__ 构造的测试替身没有 __init__ 属性
         queued = getattr(self, "_queued_fire", None)
+        self._timing('queue', getattr(self, '_queued_fire_at', None))
+        self._queued_fire_at = None
         self._queued_fire = None
         if queued is None or self._stopped:
             return
@@ -697,15 +751,17 @@ class VoiceChimeService:
         ``text`` 为语音口播文本（中文数字）；气泡优先用 ``bubble_text``
         （阿拉伯数字文本），未传时回退 ``text`（兼容旧调用与测试）。
         """
+        self._player_requested_at = time.monotonic()
         if not self._ensure_player():
             self._bubble(f"播放器不可用，音频已缓存：{Path(path).name}")
             return
         try:
             from PySide6.QtCore import QUrl
 
-            self._audio_out.setVolume(self._cfg["volume"] / 100.0)
+            self._set_playback_volume(getattr(self._app, "config", self._cfg))
             self._player.setSource(QUrl.fromLocalFile(path))
             self._player.play()
+            self._timing('play_request', self._player_requested_at)
         except Exception:
             logger.exception("语音报时播放失败：%s", path)
             self._bubble("语音播放失败（设备/解码器异常）")
@@ -720,19 +776,58 @@ class VoiceChimeService:
         """
         if valid is not None and not valid():
             return False
+        self._player_requested_at = time.monotonic()
         if not self._ensure_player():
             logger.warning("播放器不可用，外部播报跳过播放：%s", Path(path).name)
             return False
         try:
             from PySide6.QtCore import QUrl
 
-            self._audio_out.setVolume((config if config is not None else self._cfg)["volume"] / 100.0)
+            self._set_playback_volume(config if config is not None else getattr(self._app, "config", self._cfg))
             self._player.setSource(QUrl.fromLocalFile(path))
             self._player.play()
+            self._timing('play_request', self._player_requested_at)
             return True
         except Exception:
             logger.exception("外部播报播放失败：%s", path)
             return False
+
+    def _timing(self, stage, started):
+        if started is None:
+            return
+        elapsed = max(0, (time.monotonic()-started)*1000)
+        if hasattr(self, 'timings'):
+            self.timings.append((stage, elapsed))
+        logger.info('speech_timing stage=%s duration_ms=%.2f', stage, elapsed)
+
+    def _on_playback_state(self, state):
+        from PySide6.QtMultimedia import QMediaPlayer
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            self._timing('player_playing', self._player_requested_at)
+
+    def _refresh_voices(self, valid):
+        if not self._stopped and (valid is None or valid()):
+            request_voice_refresh()
+
+    def _watch_volume(self, config):
+        from .voice_volume import VolumeBinding
+        binding = getattr(self, '_volume_binding', None)
+        path = getattr(config, 'path', None)
+        if binding is not None and str(binding.config.path) != str(path):
+            binding.changed.disconnect(self._hot_volume)
+            binding.deleteLater()
+            self._volume_binding = None
+        if path is not None and self._volume_binding is None:
+            self._volume_binding = VolumeBinding(config)
+            self._volume_binding.changed.connect(self._hot_volume)
+    def _set_playback_volume(self, config):
+        from .voice_volume import effective
+        self._watch_volume(config)
+        self._audio_out.setVolume(effective(config)/100.0)
+
+    def _hot_volume(self, volume, muted):
+        if self._audio_out is not None:
+            self._audio_out.setVolume(0.0 if muted else volume/100.0)
 
     def _player_busy(self) -> bool:
         """音频通道当前是否正在出声（判断能否立即播报）。"""
@@ -756,6 +851,8 @@ class VoiceChimeService:
         """
         if status not in getattr(self, "_terminal_statuses", ()):
             return
+        self._timing('queue', getattr(self, '_queued_speech_at', None))
+        self._queued_speech_at = None
         pending = self._pending_speech
         options = getattr(self, '_pending_speech_options', {})
         self._pending_speech = None
@@ -773,6 +870,7 @@ class VoiceChimeService:
             self._player = QMediaPlayer()
             self._audio_out = QAudioOutput()
             self._player.setAudioOutput(self._audio_out)
+            self._player.playbackStateChanged.connect(self._on_playback_state)
             # 缓存终止态枚举，供 _on_media_status 判空时使用（见该方法的说明）。
             self._terminal_statuses = (
                 QMediaPlayer.MediaStatus.EndOfMedia,

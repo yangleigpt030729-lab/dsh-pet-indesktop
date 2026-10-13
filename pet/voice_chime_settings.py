@@ -20,7 +20,7 @@ _write_config 保存。
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QSignalBlocker
 from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
@@ -173,7 +173,7 @@ class VoiceChimeSettingsPage(QWidget):
                     ),
                     SettingRow("voice_chime_rate", "语速", "语速偏移百分比：0 为正常，正数更快，负数更慢。", self.rate_spin),
                     SettingRow("voice_chime_pitch", "音调", "音调偏移（Hz）：0 为正常，正数更尖锐，负数更低沉。", self.pitch_spin),
-                    SettingRow("voice_chime_volume", "音量", "报时播放音量（0-100）。", self.volume_spin),
+                    SettingRow("voice_chime_volume", "音量", "微软在线语音共用音量（0–100），与右键音量控制同步；调整会解除静音。", self.volume_spin),
                     SettingRow("voice_chime_show_bubble", "报时气泡", "报时时在桌宠头顶显示气泡文字（含台词/歌词）。", self.bubble_check),
                     SettingRow("voice_chime_show_quote", "台词/歌词", "报时时附带台词/歌词（每天整套换新，当天内每次报时按序取不同条目）；关闭后仅播报时间文本。", self.quote_check),
                     SettingRow("voice_chime_preview", "立即试听", "按当前配置立即播报一句“报时文本 + 台词/歌词”，无需等待报时点。", self.preview_btn),
@@ -209,9 +209,25 @@ class VoiceChimeSettingsPage(QWidget):
             )
         )
 
+        from .voice_volume import VolumeBinding
+        self.volume_binding = VolumeBinding(self.config, self)
+        self.volume_binding.changed.connect(self._sync_volume)
+        self.volume_spin.valueChanged.connect(self._save_volume)
+        self._sync_volume(*self.volume_binding.current)
         self._refresh_custom_enabled()
 
     # ------------------------------------------------------------ 交互
+    def _sync_volume(self, volume, muted):
+        blocker = QSignalBlocker(self.volume_spin)
+        self.volume_spin.setValue(volume)
+        self.volume_spin.setToolTip('语音已静音；调整音量解除静音' if muted else '与右键音量控制同步')
+        del blocker
+
+    def _save_volume(self, volume):
+        from .voice_volume import write
+        if not write(self.config, volume=volume):
+            self._sync_volume(*self.volume_binding.current)
+
     def _on_preview_clicked(self) -> None:
         # 先落盘当前控件值，再发试听信号（服务端按最新配置合成播放）
         self.apply_to_config()
@@ -232,7 +248,11 @@ class VoiceChimeSettingsPage(QWidget):
         self.config.set("voice_chime_voice", clean_voice(self.voice_select.currentData() or DEFAULT_VOICE))
         self.config.set("voice_chime_rate", self.rate_spin.value())
         self.config.set("voice_chime_pitch", self.pitch_spin.value())
-        self.config.set("voice_chime_volume", self.volume_spin.value())
+        from .voice_volume import values
+        volume, muted = values(self.config)  # never overwrite a newer external menu value
+        self._sync_volume(volume, muted)
+        self.config.set("voice_chime_volume", volume)
+        self.config.set("voice_chime_muted", muted)
         self.config.set("voice_chime_show_bubble", self.bubble_check.isChecked())
         self.config.set("voice_chime_show_quote", self.quote_check.isChecked())
         self.config.set("voice_chime_custom_quotes_zh", self.custom_zh_edit.toPlainText().strip())

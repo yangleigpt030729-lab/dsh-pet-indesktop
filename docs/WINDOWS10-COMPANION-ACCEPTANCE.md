@@ -550,3 +550,144 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
 反馈构建提交/日期、版本、SHA256、build.log/tests.xml、立即试听与上表逐项PASS/FAIL/NOT TESTED。不要上传私人MP3、屏幕/文件内容、会话、SQLite或Key。若失败，托盘全部退出新包，再启动原 `FishPortableTest20261013`；新旧文件夹独立保留，正式用户数据不被删除或覆盖。通过后才能将新包作为正式候选版。当前没有可从Linux交付的原生Windows绿色ZIP，不将诊断包冒充该产物。
+
+
+## 13. 已验收基线后的增量：投喂速度、识屏提示朗读和音量控制
+
+用户已确认§12的新微软接口确实发声，岛聊天、投喂/授权解读的被动朗读、最终识屏回复的主动朗读正常，余额/统计/解读进度静音。这些是**已通过的Windows10基线**。本节新功能仍需实机复验；Linux/Fake和Linux冻结诊断不能认证新Windows EXE。
+
+### 13.1 最简单的安全更新与构建
+
+全部退出旧桌宠及独立设置窗口。保留当前已验证的绿色目录（包括 `FishPortableEdgeTts20261013`、`FishPortableTest20261013`）、旧构建/源码和所有用户数据；**不要覆盖EXE或旧venv**。网页打开[开发分支](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/tree/feature/win10-companion-memory)，Code → Download ZIP，保存为 `D:\Code\FishExperienceSource20261013.zip`。下列命令在同一普通Windows PowerShell5.1逐条运行，若新目录已存在，统一换成R2后缀，不删除旧目录。
+
+```powershell
+if (Test-Path 'D:\Code\FishExperienceSource20261013') { throw 'Choose a NEW source directory.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath 'D:\Code\FishExperienceSource20261013.zip' -DestinationPath 'D:\Code\FishExperienceSource20261013'
+```
+
+```powershell
+$experienceSource = (Get-ChildItem 'D:\Code\FishExperienceSource20261013' -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'pet\__main__.py') } | Select-Object -ExpandProperty FullName)
+```
+
+```powershell
+if (-not $experienceSource -or @($experienceSource).Count -ne 1) { throw 'Expected one source root.' }
+```
+
+```powershell
+Set-Location $experienceSource
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\check_powershell_scripts.ps1
+```
+
+```powershell
+New-Item -ItemType Directory -Path 'D:\Code\FishExperienceLogs20261013' -ErrorAction Stop
+```
+
+```powershell
+Start-Transcript -Path 'D:\Code\FishExperienceLogs20261013\build.log' -NoClobber
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_companion.ps1 -PythonExe 'D:\Code\FishVenv312\Scripts\python.exe' -WorkDir 'D:\Code\FishCompanionBuildExperience20261013'
+```
+
+```powershell
+if ($LASTEXITCODE -ne 0) { throw 'Build failed. Retain the new WorkDir and log.' }
+```
+
+```powershell
+Stop-Transcript
+```
+
+新构建venv仍按原约束安装Python3.12 x64 / Qt6.8.3 / PyInstaller6.19，不改旧环境和正式依赖版本。全部原编码/DLL/资源/瘦身/安全/GUI及独立设置窗口冒烟保留，TTS归档门禁现在也要求实际包含音量状态与控件模块。缺模块必须停止，不能跳过检查继续发包。源码/API Key/本地数据库严格分开，构建不打包真实密钥。
+
+```powershell
+$experienceZip = 'D:\Code\FishCompanionBuildExperience20261013\dsh-pet-companion-win10\dist-onedir\dsh-pet-standalone-webm-chat-portable.zip'
+```
+
+```powershell
+Get-FileHash -LiteralPath $experienceZip -Algorithm SHA256
+```
+
+```powershell
+if (Test-Path 'D:\Code\FishPortableExperience20261013') { throw 'Choose a NEW portable directory.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath $experienceZip -DestinationPath 'D:\Code\FishPortableExperience20261013'
+```
+
+```powershell
+$experienceExe = 'D:\Code\FishPortableExperience20261013\dsh-pet-standalone-webm-chat\dsh-pet-standalone-webm-chat.exe'
+```
+
+始终保留完整EXE与 `_internal` 同级目录；若解压层级不同，只修改上述EXE路径。先隔离Fake验GUI，全部退出后再换全新live目录，不复制正式APPDATA或旧SQLite：
+
+```powershell
+& $experienceExe --companion-acceptance --data-dir 'D:\Code\FishExperienceFake20261013'
+```
+
+```powershell
+& $experienceExe --companion-acceptance --live --data-dir 'D:\Code\FishExperienceLive20261013'
+```
+
+两条启动命令分别执行，上一程序必须先从托盘全部退出。Fake完全离线，无真实声音，不能作为微软联网成功。live无DeepSeek Key时可以先在原语音页点「立即试听」；模型功能使用本机原设置自行配置，密钥不要写到命令行/源码/报告。先用无私人内容的文件和测试窗口。
+
+### 13.2 本轮验收矩阵
+
+| 功能 | 操作与通过条件 |
+|---|---|
+| 已通过功能回归 | 再验新微软接口试听、岛聊天、趣味投喂、文本明确确认解读/完成被动朗读、最终识屏回复主动朗读；余额/统计/进度继续静音，动画/拖动/透明边缘及原文件正常 |
+| 投喂节奏 | 投喂PNG/ZIP/目录及多文件，统计立即显示且不朗读；后台元数据就绪后仅50毫秒首批合并即发原模型请求，不再等2秒；回复合格到达立即替换统计，第二条才朗读一次。短时同步输入/在飞输入继续有界合并，不额外重试或生成语音专用模型文案；快速重复输入的批次边界由合并/单飞决定，不承诺网络返回固定时间 |
+| 识屏前置提示 | 主动识屏实际触发、pre_cue开且气泡真的显示、主动朗读开才读「让我看看……」。被动开关和普通主动AI总开关不决定它；关闭pre_cue不显示/朗读；只读已展示内容，不绕过截图授权、白名单或原频控 |
+| 冷/热缓存 | 第一次提示可能需在线合成；若2.5秒气泡已隐藏或被最终回复替换，迟到提示只保留MP3缓存、不播旧词。下一次合法触发同音色/语速/音调命中原缓存；无未经授权的启动预合成、无无限动态预缓存。最终回复沿原单通道，不叠音 |
+| 新音量子菜单 | 现代默认菜单在大小附近有「音量控制」，悬停展开；Legacy也有同入口。拖滑块/按左右键即时调0–100，显示百分比；静音保留之前数值，恢复同一数值；静音时滑动以新数值解除。按钮/滑块操作不关闭菜单，Esc/点菜单外可关闭 |
+| 双向同步 | 设置已开时右键调音量，原「语音→语音报时→音量」随之同步；设置调音量后再次开菜单显示新值。保持窗口打开，另一入口改新值，然后保存/退出设置不得写回旧值。独立设置进程与进程内模式均验 |
+| 热更新/多宠 | 正在播放时调音量/静音马上生效；正在合成和排队的回复开始时用最新有效音量，调音量不取消本来有效的文字朗读。分别主/子宠与Legacy/Overlay，改某宠不能影响另一宠音量；报时、主动、被动、文件解读共用原语音输出。系统、音乐播放器、独立点击音效音量不变 |
+| 隐私与取消 | 关闭主动朗读/识屏/precue、隐藏/换角色、任务失效或用新气泡替换后，未开始播放的旧提示不得响；已开始声音仍用原生命周期。未确认文本解读前不读取/上传；趣味请求仍仅类别/数量/粗略大小，原文件不变 |
+| 网络失败 | 音色表不可达/超时不挡当前TTS，沿内置/历史表并保留下架回退；缓存句仍可播。TTS错误保留文字，模型失败原动画/统计及本地备用回复正常。原120秒模型失败退避保留，它不是成功互动冷却 |
+
+### 13.3 记录真实分段延迟及回退
+
+产品日志增加的记录不含私密台词/文件名/路径：`interaction_timing` 的feed_to_request（元数据offer到模型发送）和feed_to_reply；`speech_timing` 的queue、cache_hit/cache_miss、synthesis_total、tts_network、voice_list_refresh、play_request与player_playing。`play_request`是播放器提交耗时，`player_playing`是Qt进入播放状态，不是麦克风测得“真的听到第一采样”；应另记人工听感。音色表单飞后台刷新，成功表TTL六小时，失败尝试至少隔15分钟，网络超时2.5秒。TTS网络/导入/重试/设备启动仍有真实延迟，不宣称零延迟。
+
+读取对应隔离data-dir下 `dsh-pet-standalone` 的 `pet-<pid>.log`；只收集带 `interaction_timing` / `speech_timing` 的数字行。避免上传整个日志、个人台词/文件、API Key、SQLite或声音文件。对比新/旧版本时都使用合成文件和独立目录，分开记录冷缓存、热缓存、音色/语速和拓扑，不删正式缓存以制造冷启动。
+
+新源码离线回归可用新WorkDir的解释器（如需pytest按§12装到新build-venv），保持 `-X utf8` 和空keyring后端；命令：
+
+```powershell
+Set-Location 'D:\Code\FishCompanionBuildExperience20261013\dsh-pet-companion-win10'
+```
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+```
+
+```powershell
+$experienceOldKeyringBackend = $env:PYTHON_KEYRING_BACKEND
+```
+
+```powershell
+$env:PYTHON_KEYRING_BACKEND = 'keyring.backends.null.Keyring'
+```
+
+```powershell
+& 'D:\Code\FishCompanionBuildExperience20261013\build-venv\Scripts\python.exe' -X utf8 -m pytest -q tests/test_companion_latency.py tests/test_companion_precue_speech.py tests/test_companion_volume.py tests/test_companion_result_speech.py tests/test_edge_tts_endpoint.py tests/test_island_overlay_chat_entry.py tests/test_menu_layout.py --basetemp='D:\Code\FishExperiencePytestTemp20261013' --junitxml='D:\Code\FishExperienceLogs20261013\tests.xml'
+```
+
+`--basetemp`只用专门的全新测试临时目录，pytest会清理它；不得指向源码/用户数据/旧绿色目录。
+
+```powershell
+if ($experienceOldKeyringBackend) { $env:PYTHON_KEYRING_BACKEND = $experienceOldKeyringBackend } else { Remove-Item Env:PYTHON_KEYRING_BACKEND -ErrorAction SilentlyContinue }
+```
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+```
+
+反馈提交、版本、ZIP SHA256、build.log/tests.xml、上述矩阵逐项PASS/FAIL/NOT TESTED及分段耗时。失败时全部退出新程序，保留新目录供定位，直接回原已验证绿色目录启动旧EXE；正式数据与旧包不被覆盖。原生新包尚未在云端生成，这套流程须在你的Windows10机器执行。

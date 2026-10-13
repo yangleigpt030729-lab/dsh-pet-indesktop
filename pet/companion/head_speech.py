@@ -111,11 +111,9 @@ def speech_identity(config):
     keys = ('character', 'chat', 'dialogue_mode', 'dialogue_phrases', 'companion_interaction',
             'self_talk_enabled', 'click_show_self_talk', 'proactive_chat', 'todo_reminder_enabled',
             'file_interpret', 'proactive_screen',
-            'voice_chime_voice', 'voice_chime_rate', 'voice_chime_pitch', 'voice_chime_volume')
-    try:
-        stamp = config.path.stat().st_mtime_ns
-    except OSError:
-        stamp = 0
+            'voice_chime_voice', 'voice_chime_rate', 'voice_chime_pitch')
+    from ..voice_volume import semantic_stamp
+    stamp = semantic_stamp(config)
     return json.dumps([str(config.path), stamp, [config.get(k) for k in keys]], sort_keys=True)
 
 

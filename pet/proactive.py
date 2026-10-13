@@ -526,7 +526,7 @@ class ProactiveScreenWatcher:
             if callable(hold):
                 hold(30.0)
             if eff.get("pre_cue", True) and hasattr(self.win, "show_bubble"):
-                self.win.show_bubble("让我看看……", duration_ms=2500)
+                self._present_reply("让我看看……", 2500, self._generation, str(self.cfg.get("character", "")), pre_cue=True)
 
             # 纯内存 JPEG bytes（严禁写临时文件）；worker 线程已完成编码，
             # 直接调用（测试）传入 PIL Image 时在此兼容编码
@@ -561,12 +561,13 @@ class ProactiveScreenWatcher:
         finally:
             self._worker_busy = False
 
-    def _present_reply(self, text, duration_ms, generation, character):
+    def _present_reply(self, text, duration_ms, generation, character, *, pre_cue=False):
         from .companion.head_speech import present_reply
         def current():
             return (generation == self._generation
                     and bool(effective_proactive_config(self.cfg.get('proactive_screen', {}))['enabled'])
-                    and str(self.cfg.get('character', '')) == character)
+                    and str(self.cfg.get('character', '')) == character
+                    and (not pre_cue or effective_proactive_config(self.cfg.get('proactive_screen', {}))['pre_cue']))
         if not current() or not hasattr(self.win, 'show_bubble'):
             return
         presenter = getattr(self.win, 'show_proactive_reply', None)

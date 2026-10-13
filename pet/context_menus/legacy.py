@@ -78,6 +78,8 @@ def build_legacy_menu(menu: QMenu, pet, template: dict) -> None:
     add_music_open_qqmusic(music_menu, pet, icons=False)
     add_edge_probe(menu, pet, icons=False)
     build_size_menu(menu, pet, icons=False)
+    from .voice_volume import build_volume_menu
+    build_volume_menu(menu, pet, icons=False)
 
     menu.addSeparator()
     # 纯桌宠（无 Chat/DSH 联动）版本不再显示“启动 DeepSeek Harness”，

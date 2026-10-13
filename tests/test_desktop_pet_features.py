@@ -871,6 +871,7 @@ def test_modern_context_menu_has_compact_semantic_groups(monkeypatch):
         "切换角色",
         "播放速率",
         "大小",
+        "音量控制",
         "音乐",
         "桌宠控制",
         "快捷启动",

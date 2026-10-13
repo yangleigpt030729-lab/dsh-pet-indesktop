@@ -349,6 +349,7 @@ class _LinkAnimChain:
 #   ``stream_capture_mode``）：一次只有一个合成窗，这些键物理上无法 per-pet
 #   （审计 C4），继续按主配置**全局**生效。
 PER_SLOT_SETTING_KEYS = frozenset({
+    "voice_chime_muted",
     # 几何 / 运动
     "scale", "playback_speed", "drag_physics", "throw_strength",
     "ffmpeg_recycle_minutes",

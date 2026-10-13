@@ -836,6 +836,7 @@ class Config:
             "voice_chime_voice": "zh-CN-XiaoxiaoNeural",  # edge-tts 音色
             "voice_chime_rate": 0,  # 语速偏移（%），-100~100
             "voice_chime_pitch": 0,  # 音调偏移（Hz），-50~50
+            "voice_chime_muted": False,  # 保留音量数值的独立语音静音状态
             "voice_chime_volume": 80,  # 播放音量（0~100）
             "voice_chime_show_bubble": True,  # 报时气泡开关
             "voice_chime_show_quote": True,  # 台词/歌词开关
@@ -1097,6 +1098,7 @@ class Config:
             "voice_chime_voice",
             "voice_chime_rate",
             "voice_chime_pitch",
+            "voice_chime_muted",
             "voice_chime_volume",
             "voice_chime_show_bubble",
             "voice_chime_show_quote",
@@ -1338,6 +1340,7 @@ class Config:
         self.data["self_talk_image_chance"] = int(_float_or_default(self.data.get("self_talk_image_chance"), float(DEFAULT_SELF_TALK_IMAGE_CHANCE), 0.0, 100.0))
         self.data["bubble_text_scale"] = int(_float_or_default(self.data.get("bubble_text_scale"), 100.0, 50.0, 300.0))
         self.data["self_talk_enabled"] = bool(self.data.get("self_talk_enabled", False))
+        self.data["voice_chime_muted"] = _bool_or_default(self.data.get("voice_chime_muted"), False)
         self.data["self_talk_speak_enabled"] = _bool_or_default(self.data.get("self_talk_speak_enabled"), False)
         self.data["proactive_bubble_speak_enabled"] = _bool_or_default(self.data.get("proactive_bubble_speak_enabled"), False)
         self.data["self_talk_voice_precache_enabled"] = _bool_or_default(self.data.get("self_talk_voice_precache_enabled"), False)

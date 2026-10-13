@@ -80,10 +80,8 @@ class ProactiveService(QObject):
             cfg['enabled'] = False
         settings = self.config.chat_settings()
         character = str(self.config.get('character', ''))
-        try:
-            stamp = self.config.path.stat().st_mtime_ns
-        except OSError:
-            stamp = 0
+        from ..voice_volume import semantic_stamp
+        stamp = semantic_stamp(self.config)
         identity = hashlib.sha256(json.dumps([cfg, settings.to_dict(), character, stamp, generation, style_context(self.config)], sort_keys=True).encode()).hexdigest()
         return cfg, settings, character, identity
 

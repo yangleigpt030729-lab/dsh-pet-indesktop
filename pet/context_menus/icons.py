@@ -130,7 +130,15 @@ def vector_menu_icon(menu: QMenu, name: str, size: int | None = None) -> QIcon:
     pixmap, painter, color = _new_icon_canvas(menu, size)
     path = QPainterPath()
 
-    if name == "search":
+    if name == "volume":
+        painter.drawRect(QRectF(2, 6, 3, 4))
+        path.moveTo(5, 6)
+        path.lineTo(9, 3)
+        path.lineTo(9, 13)
+        path.lineTo(5, 10)
+        painter.drawPath(path)
+        painter.drawArc(QRectF(7, 4, 6, 8), -60 * 16, 120 * 16)
+    elif name == "search":
         painter.drawEllipse(QPointF(6.5, 6.5), 4.5, 4.5)
         painter.drawLine(QPointF(9.8, 9.8), QPointF(14.0, 14.0))
     elif name == "chat":

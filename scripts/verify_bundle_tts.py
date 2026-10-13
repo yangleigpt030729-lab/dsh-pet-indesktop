@@ -46,6 +46,8 @@ from pathlib import Path
 MINIMUM_MODULES = (
     "pet.voice_chime_service",
     "pet.edge_tts_compat",
+    "pet.voice_volume",
+    "pet.context_menus.voice_volume",
     "edge_tts",
     "edge_tts.communicate",
     "edge_tts.constants",

@@ -156,6 +156,7 @@ RELOAD_WHITELIST_SNAPSHOT = frozenset(
         "voice_chime_custom_quotes_en",
         "voice_chime_custom_quotes_zh",
         "voice_chime_voice",
+        "voice_chime_muted",
         "voice_chime_volume",
     }
 )

@@ -54,7 +54,7 @@ from .shared import (
 ACTION_LABELS = {
     "ojingjing": "厉害了我的鲸", "chat": "AI 对话", "look_screen": "看看屏幕",
     "animations_hub": "播放动画", "character": "切换角色", "playback_speed": "播放速率",
-    "size": "大小", "drag_physics": "拖动物理", "no_move": "不移动",
+    "voice_volume": "音量控制", "size": "大小", "drag_physics": "拖动物理", "no_move": "不移动",
     "on_top": "窗口置顶", "autostart": "开机自启",
     "return_corner": "回到右下角", "hide_pet": "隐藏桌宠",
     "spawn_pet": "生小肥鱼", "clear_spawned_pets": "退出子肥鱼",
@@ -82,7 +82,7 @@ Enablement = Callable[[object], bool]
 ACTION_ICONS = {
     "ojingjing": "pet", "chat": "chat", "look_screen": "screen",
     "animations_hub": "play", "character": "character", "playback_speed": "speed",
-    "size": "size", "drag_physics": "physics", "no_move": "pause",
+    "voice_volume": "volume", "size": "size", "drag_physics": "physics", "no_move": "pause",
     "on_top": "pin", "autostart": "autostart",
     "return_corner": "corner", "hide_pet": "hide",
     "spawn_pet": "spawn", "clear_spawned_pets": "clear",
@@ -102,7 +102,7 @@ ACTION_ICONS = {
 CUSTOM_ICON_CHOICES = (
     ("默认图标", "default"), ("无图标", "none"),
     ("对话", "chat"), ("屏幕", "screen"), ("播放", "play"),
-    ("角色", "character"), ("速度", "speed"), ("尺寸", "size"),
+    ("音量", "volume"), ("角色", "character"), ("速度", "speed"), ("尺寸", "size"),
     ("桌宠", "pet"), ("交互", "interaction"), ("置顶", "pin"),
     ("隐藏", "hide"), ("应用", "application"), ("余额", "balance"),
     ("清除", "clear"), ("网页", "web"), ("下载", "download"), ("更新", "update"),
@@ -145,6 +145,11 @@ def _music_align_ready(pet) -> bool:
     if not isinstance(controller, MusicLyricController):
         return False
     return bool(controller.align_available())
+
+
+def _build_voice_volume(menu, pet):
+    from .voice_volume import build_volume_menu
+    return build_volume_menu(menu, pet)
 
 
 def _build_chat(menu, pet):
@@ -247,6 +252,7 @@ class MenuActionRegistry:
             "animations_hub": MenuActionSpec(_build_animations),
             "character": MenuActionSpec(lambda menu, pet: build_character_menu(menu, pet)),
             "playback_speed": MenuActionSpec(lambda menu, pet: build_speed_menu(menu, pet)),
+            "voice_volume": MenuActionSpec(_build_voice_volume),
             "size": MenuActionSpec(lambda menu, pet: build_size_menu(menu, pet)),
             "drag_physics": MenuActionSpec(add_drag_physics),
             "no_move": MenuActionSpec(add_no_move),
