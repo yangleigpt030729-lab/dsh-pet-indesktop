@@ -32,7 +32,7 @@ class ProactiveSettings(SettingsSection):
         self.speech_control = ToggleSwitch()
         self.speech_control.setChecked(bool(config.get('proactive_bubble_speak_enabled', False)))
         rows.append(SettingRow('proactive_chat_speak', '主动陪伴朗读',
-            '默认关闭。独立控制已展示的主动问候、喝水/休息/关怀及待办提醒。开启即同意待播报文字（可能含私人待办标题）发送到在线语音合成服务；仅桌面通知不朗读。', self.speech_control))
+            '默认关闭。独立控制已展示的主动问候、喝水/休息/关怀、待办及自动识屏AI回复。识屏只需其自身功能开关。开启即同意待播报文字（可能含私人待办或屏幕信息）发送到微软在线语音合成服务；进度、统计和仅桌面通知无声。', self.speech_control))
         self.speech_control.toggled.connect(lambda value: self._save_speech(value))
         status = QLabel('未启用时零主动请求。开启后等待合适时机；缺少凭据时不请求网络。')
         status.setWordWrap(True)

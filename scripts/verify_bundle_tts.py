@@ -44,8 +44,11 @@ from pathlib import Path
 # 底部兜底清单：即使闭包测量退化（例如打包机装了 edge-tts 但 import 抛错被吞），
 # 这些模块也必须在包里。`tabulate` 在列——它是 PYZ-only 的那类依赖。
 MINIMUM_MODULES = (
+    "pet.voice_chime_service",
+    "pet.edge_tts_compat",
     "edge_tts",
     "edge_tts.communicate",
+    "edge_tts.constants",
     "edge_tts.util",
     "tabulate",
     "aiohttp",

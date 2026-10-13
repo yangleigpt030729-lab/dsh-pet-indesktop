@@ -136,6 +136,8 @@
 
 ## PR 报告存档
 
+- [Edge TTS新接口、岛聊天与指定回复朗读](PR-REPORT-EDGE-TTS-ISLAND-RESULT-SPEECH-2026-10-13.md)：运行期语音兼容、实际按钮路由、识屏/授权文件回复的朗读测试与打包证据；修改这些路径前必读，Windows复验配合指南§12。
+
 - [Windows FFmpeg 控制台与 PowerShell 5.1](PR-REPORT-FFMPEG-NO-CONSOLE-2026-10-13.md)：全运行期 FFmpeg 创建入口、BOM/预解析及原生 EXE 复验步骤；重新打包前必读。
 
 - [陪伴双朗读与取消成功冷却](PR-REPORT-COMPANION-DUAL-SPEECH-2026-10-13.md)：两独立语音授权、原通道撤销、投喂顺序与待办接线；本轮Windows复测前必读。

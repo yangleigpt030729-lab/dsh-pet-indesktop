@@ -70,6 +70,8 @@ class _FakeCommunicate:
 
 def _install_fake_edge_tts(monkeypatch, *, live_voices=None):
     module = types.ModuleType("edge_tts")
+    module.communicate = types.SimpleNamespace(WSS_URL='wss://synthetic.invalid')
+    module.constants = types.SimpleNamespace(TRUSTED_CLIENT_TOKEN='synthetic-client-token')
 
     async def list_voices():
         return [{"ShortName": name} for name in (live_voices or [])]

@@ -67,7 +67,7 @@ def build_click_rows(dialog) -> list[SettingRow]:
             SettingRow(
                 "click_self_talk_speak",
                 "被动互动朗读",
-                "朗读已展示的摸头、点击/定时自言自语与趣味投喂文字；图片和投喂统计无声。复用原缓存与在线语音合成服务，待朗读文字可能发往该服务。",
+                "朗读已展示的摸头、点击/定时自言自语、趣味投喂及明确授权后的文件解读完成回复；图片、统计和解读进度无声。开启即同意待朗读文字（可能含私人文件信息）发送到微软在线语音合成服务。",
                 dialog.click_self_talk_speak_check,
             ),
             SettingRow(

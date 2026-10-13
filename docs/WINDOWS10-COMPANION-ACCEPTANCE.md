@@ -391,3 +391,162 @@ Remove-Item Env:PET_FRAMESEQ -ErrorAction SilentlyContinue
 ```
 
 反馈：源码分支/提交号、Windows19045/Python/Qt/PyInstaller版本、ZIP字节数与SHA256、build.log、native-tests.xml、两个console.json，以及上述八项各自PASS/FAIL/NOT TESTED和实际时间。若再出现黑窗口，记录标题/操作/拓扑/角色/运行多久/是否后台转换或回收，截取仅该控制台的脱敏图片。不要上传APPDATA、API Key、个人SQLite或聊天/待办内容。失败保留新目录，退出后可回到旧 `FishPortableTest20261013`；绝不覆盖旧包。真实DeepSeek、真实Edge声音、本轮新EXE控制台修复，在拿到实际结果前仍为 **NOT TESTED**。
+
+
+## 12. 微软新语音接口、岛聊天与两类回复朗读：更新和试听
+
+本节对应[交付报告](PR-REPORT-EDGE-TTS-ISLAND-RESULT-SPEECH-2026-10-13.md)。用户已在Windows10 19045验证：旧 `speech.platform.bing.com` 返回403，临时将SDK地址改为 `api.msedgeservices.com` 后成功生成并播放MP3。本次将这个兼容修复放在项目原语音worker中，**不要求修改旧虚拟环境**。此次新产品代码、原生EXE、真实Edge声音与真实DeepSeek在本Linux环境中均 **NOT TESTED**；Linux冻结诊断包的离线PASS只证明适配模块被收集和执行，不能作为Windows便携版交付。
+
+### 12.1 网页下载与全新目录构建
+
+保留旧源码、旧ZIP、旧构建/绿色目录、APPDATA及个人数据库；先从托盘全部退出旧桌宠。打开[开发分支](https://github.com/yangleigpt030729-lab/dsh-pet-indesktop/tree/feature/win10-companion-memory)，Code → Download ZIP，保存为 `D:\Code\FishEdgeSource20261013.zip`。不要覆盖旧文件。下列命令逐条在同一个普通Windows PowerShell5.1执行；任何新目录已存在则统一换R2后缀，不合并、不删除旧目录。
+
+```powershell
+if (Test-Path 'D:\Code\FishEdgeSource20261013') { throw 'Choose a NEW source directory.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath 'D:\Code\FishEdgeSource20261013.zip' -DestinationPath 'D:\Code\FishEdgeSource20261013'
+```
+
+```powershell
+$edgeSource = (Get-ChildItem 'D:\Code\FishEdgeSource20261013' -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'pet\__main__.py') } | Select-Object -ExpandProperty FullName)
+```
+
+```powershell
+if (-not $edgeSource -or @($edgeSource).Count -ne 1) { throw 'Expected one downloaded project root.' }
+```
+
+```powershell
+Set-Location $edgeSource
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\check_powershell_scripts.ps1
+```
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+```
+
+```powershell
+New-Item -ItemType Directory -Path 'D:\Code\FishEdgeLogs20261013' -ErrorAction Stop
+```
+
+```powershell
+Start-Transcript -Path 'D:\Code\FishEdgeLogs20261013\build.log' -NoClobber
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\build_windows_companion.ps1 -PythonExe 'D:\Code\FishVenv312\Scripts\python.exe' -WorkDir 'D:\Code\FishCompanionBuildEdgeTts20261013'
+```
+
+```powershell
+if ($LASTEXITCODE -ne 0) { throw 'Build failed; retain the new WorkDir and transcript.' }
+```
+
+```powershell
+Stop-Transcript
+```
+
+构建使用全新venv、Python3.12 x64、Qt6.8.3、PyInstaller6.19及原约束安装；旧venv不变。原BOM/预解析、资源/编码、DLL/瘦身、安全源码、EXE/独立设置窗口冒烟继续执行；本次新增实际TTS归档门禁，缺 `pet.edge_tts_compat` 或原语音依赖会停止构建，不产出可发放ZIP。日志必须含 `[tts] bundle TTS stack OK`。没有Key写进源码、ZIP或日志。
+
+```powershell
+$edgeStage = 'D:\Code\FishCompanionBuildEdgeTts20261013\dsh-pet-companion-win10'
+```
+
+```powershell
+$edgePython = 'D:\Code\FishCompanionBuildEdgeTts20261013\build-venv\Scripts\python.exe'
+```
+
+```powershell
+$edgeZip = Join-Path $edgeStage 'dist-onedir\dsh-pet-standalone-webm-chat-portable.zip'
+```
+
+```powershell
+Get-FileHash -LiteralPath $edgeZip -Algorithm SHA256
+```
+
+```powershell
+if (Test-Path 'D:\Code\FishPortableEdgeTts20261013') { throw 'Choose a NEW portable directory; keep the old portable.' }
+```
+
+```powershell
+Expand-Archive -LiteralPath $edgeZip -DestinationPath 'D:\Code\FishPortableEdgeTts20261013'
+```
+
+```powershell
+$edgeExe = 'D:\Code\FishPortableEdgeTts20261013\dsh-pet-standalone-webm-chat\dsh-pet-standalone-webm-chat.exe'
+```
+
+使用完整解压目录，不能只替换EXE或把EXE移出 `_internal`。若ZIP层级不同，用资源管理器确认EXE与 `_internal` 同级，再修改上一行变量。新包保留上一轮FFmpeg无控制台与严格FreeConsole探针修复；Windows原生专项测试与观察仍按§11执行，不因本轮声音变化免除。
+
+### 12.2 最简单的在线试听及离线复验
+
+首先在**全新隔离目录**启动真实语音模式；下列 `--live` 允许联网，但未填写DeepSeek Key时不得发出模型请求。不要在命令行写密钥。语音本身不需要DeepSeek Key。
+
+```powershell
+& $edgeExe --companion-acceptance --live --data-dir 'D:\Code\FishEdgeLiveAcceptance20261013'
+```
+
+右键桌宠 → 桌宠设置 → 语音设置，选择原微软音色并点击「立即试听」。全新目录避免旧缓存造成假成功；也可改变音色/语速生成新缓存。明确同意在线语音：实际播报文本可能发送微软服务。保留系统原代理设置，不关闭TLS验证，不改SDK文件；记录MP3新生成、确实听到声音或原失败状态。在线失败不应抹掉文字或造成新气泡覆盖。
+
+随后分别打开/关闭「被动互动朗读」「主动陪伴朗读」验证四种组合；它们仍默认关闭，报时/节日开关独立，旧用户原被动开关偏好保留。
+
+| 项目 | 操作与预期 |
+|---|---|
+| 岛聊天 | Legacy与Overlay展开灵动岛，实际点击聊天，卡片收起且对话气泡出现；宠物隐藏时走岛聊天；无聊天变体不打开聊天 |
+| 被动文件回复 | 用合成TXT拖入，未确认不读取/调用模型/朗读；明确确认后只有成功展示的「解读完成：…」同一句朗读一次；进度、耗时、开始/失败不朗读 |
+| 主动识屏回复 | 主动识屏自己开启并获得截图授权；普通主动AI陪伴可关闭。只在实际成功显示AI回复时按主动朗读开关读一次；「让我看看…」、失败和统计静音 |
+| 原功能 | 摸头、点击/定时文字、趣味投喂仍走被动开关；普通主动问候/喝水/休息/关怀/待办仍走主动开关。投喂先统计（静音）后趣味回复，内容解读原授权优先权不变 |
+| 失效撤销 | 合成或排队时关闭对应声音/业务、隐藏、换角色/宠物、换文本/音色、取消文件任务或退出，未开始播放的旧声音不得响；已开始的沿原播放器生命周期 |
+| 静音排除 | 余额/余额变化、Agent消费、累计计数、纯图片、投喂统计、识屏前置提示、文件进度/字数/耗时/失败均不读 |
+| 多宠 | 主/子宠各自音色、语速、音调、音量和开关；两开关都开仍共用原有有界语音队列，不叠音 |
+
+文件AI解读与识屏AI需要用户在本机原设置中自行配置可用模型，绝不要发送真实Key给开发者。不要用私人文件或屏幕验收；推荐合成文本与测试窗口，保留截图/文件授权规则。
+
+全部退出live后可启动Fake进行GUI/合成记录验证（默认不会访问真实Edge/DeepSeek/系统凭据）：
+
+```powershell
+& $edgeExe --companion-acceptance --data-dir 'D:\Code\FishEdgeFakeAcceptance20261013'
+```
+
+Fake日志中的 `synthetic speech requested; real audio NOT TESTED` 不是声音成功。需要源码离线回归时，在新构建venv安装pytest，不动旧环境：
+
+```powershell
+Set-Location $edgeStage
+```
+
+```powershell
+& $edgePython -X utf8 -m pip install pytest -c packaging\constraints-win10-companion.txt
+```
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+```
+
+自动化测试使用空密钥后端，避免岛卡片附带的余额刷新接触本机真实凭据；仅限本轮pytest，结束恢复原环境。
+
+```powershell
+$edgeOldKeyringBackend = $env:PYTHON_KEYRING_BACKEND
+```
+
+```powershell
+$env:PYTHON_KEYRING_BACKEND = 'keyring.backends.null.Keyring'
+```
+
+```powershell
+& $edgePython -X utf8 -m pytest -q tests/test_edge_tts_endpoint.py tests/test_island_overlay_chat_entry.py tests/test_companion_result_speech.py tests/test_companion_dual_speech.py tests/test_voice_chime_edge_voice.py tests/test_powershell_encoding.py --basetemp='D:\Code\FishEdgePytestTemp20261013' --junitxml='D:\Code\FishEdgeLogs20261013\tests.xml'
+```
+
+```powershell
+if ($edgeOldKeyringBackend) { $env:PYTHON_KEYRING_BACKEND = $edgeOldKeyringBackend } else { Remove-Item Env:PYTHON_KEYRING_BACKEND -ErrorAction SilentlyContinue }
+```
+
+`--basetemp` 必须是专门的全新测试临时目录，pytest会清理其中内容，不能指向源码、用户数据或旧绿色目录。
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+```
+
+反馈构建提交/日期、版本、SHA256、build.log/tests.xml、立即试听与上表逐项PASS/FAIL/NOT TESTED。不要上传私人MP3、屏幕/文件内容、会话、SQLite或Key。若失败，托盘全部退出新包，再启动原 `FishPortableTest20261013`；新旧文件夹独立保留，正式用户数据不被删除或覆盖。通过后才能将新包作为正式候选版。当前没有可从Linux交付的原生Windows绿色ZIP，不将诊断包冒充该产物。

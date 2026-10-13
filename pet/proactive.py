@@ -230,7 +230,7 @@ class ProactiveScreenWatcher:
             # 注意：hwnd/dhash 必须用 object——Qt 的 int 是 32 位有符号，
             # 64 位 dHash 会触发 libshiboken Overflow 且投递行为未定义。
             frame_ready = Signal(object, str, object, object, dict)
-            bubble_requested = Signal(str, int)
+            bubble_requested = Signal(str, int, int, str)
             # 主动识屏回复全文同步进 AI 对话会话（worker 线程不能直接碰
             # Qt/会话存储，经桥接信号回到主线程再转发给 app 层）
             reply_synced = Signal(str, str)
@@ -244,9 +244,8 @@ class ProactiveScreenWatcher:
             ) -> None:
                 self._watcher._on_frame_ready(img, app_str, hwnd, cur_hash, info_dict)
 
-            def _forward_bubble(self, text: str, duration_ms: int) -> None:
-                if hasattr(self._watcher.win, "show_bubble"):
-                    self._watcher.win.show_bubble(text, duration_ms=duration_ms)
+            def _forward_bubble(self, text: str, duration_ms: int, generation: int, character: str) -> None:
+                self._watcher._present_reply(text, duration_ms, generation, character)
 
             def _forward_reply_sync(self, user_text: str, reply: str) -> None:
                 self._watcher._on_reply_synced(user_text, reply)
@@ -562,6 +561,20 @@ class ProactiveScreenWatcher:
         finally:
             self._worker_busy = False
 
+    def _present_reply(self, text, duration_ms, generation, character):
+        from .companion.head_speech import present_reply
+        def current():
+            return (generation == self._generation
+                    and bool(effective_proactive_config(self.cfg.get('proactive_screen', {}))['enabled'])
+                    and str(self.cfg.get('character', '')) == character)
+        if not current() or not hasattr(self.win, 'show_bubble'):
+            return
+        presenter = getattr(self.win, 'show_proactive_reply', None)
+        if callable(presenter):
+            presenter(text, duration_ms, valid=current)
+        else:
+            present_reply(self.win, text, duration_ms, active=True, valid=current)
+
     def _on_reply_synced(self, user_text: str, reply: str) -> None:
         """主线程槽：把主动识屏回复全文转发给 app 层同步进 AI 对话会话。
 
@@ -609,6 +622,8 @@ class ProactiveScreenWatcher:
         """后台线程：发起大模型视觉请求，处理重试/熔断，并通过桥接信号在桌宠冒泡。"""
         from . import catalog, vision
 
+        generation = self._generation if gen < 0 else gen
+        character = str(self.cfg.get('character', ''))
         pet_name = self.cfg.character_display_name(
             str(self.cfg.get('character', catalog.DEFAULT_CHARACTER))
         )
@@ -619,12 +634,12 @@ class ProactiveScreenWatcher:
             )
             # 代次隔离：请求在飞期间用户关闭功能/隐藏窗口（pause 翻转代次）时，
             # 迟到答复一律丢弃——不冒泡、不耗额度计数、不写陪伴记忆。
-            if gen >= 0 and gen != self._generation:
+            if generation != self._generation:
                 return
             if reply and reply.strip() and self._bridge_alive():
                 # 按时长按内容长度缩放：太短读不完。6s 起步，每字 +150ms，封顶 20s
                 duration = max(6000, min(20000, 4000 + len(reply) * 150))
-                self._bridge.bubble_requested.emit(reply, duration)
+                self._bridge.bubble_requested.emit(reply, duration, generation, character)
                 self.limiter.record_success()
                 # 陪伴记忆只存 进程名+活动分类，不落窗口标题（可能含文档/网页敏感信息）
                 if proc_name or current_act:

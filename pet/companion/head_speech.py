@@ -54,9 +54,11 @@ def wanted(shell):
         chat = getattr(shell, 'enable_chat', False)
         passive = speech_enabled(cfg) and (cfg.get('click_show_self_talk', False)
             or cfg.get('self_talk_enabled', False)
-            or (chat and (enabled(cfg, 'head_touch_enabled') or enabled(cfg, 'feeding_enabled'))))
+            or (chat and (enabled(cfg, 'head_touch_enabled') or enabled(cfg, 'feeding_enabled')
+                          or (cfg.get('file_interpret') or {}).get('enabled', True))))
         active = speech_enabled(cfg, active=True) and (cfg.get('todo_reminder_enabled', True)
-            or (chat and (cfg.get('proactive_chat') or {}).get('enabled', False)))
+            or (chat and ((cfg.get('proactive_chat') or {}).get('enabled', False)
+                          or (cfg.get('proactive_screen') or {}).get('enabled', False))))
         if passive or active:
             return True
     return False
@@ -64,9 +66,34 @@ def wanted(shell):
 
 def target_for_host(host):
     from .interaction_runtime import Target
+    if hasattr(host, 'actor'):
+        return host.actor  # the existing explicitly-authorized file target
     if hasattr(host, '_shell') and hasattr(host, '_sprite'):
         return Target(host._shell, host._sprite)
     return Target(host, host.sprite) if hasattr(host, 'overlay') and hasattr(host, 'sprite') else Target(host)
+
+
+def present_reply(host, text, duration_ms, *, active=False, valid=None):
+    """Business reply boundary only; never called by generic show_bubble."""
+    allowed = valid or (lambda: True)
+    if not allowed():
+        return False
+    try:
+        target = target_for_host(host)
+        reader = target.host_ref()
+        sprite = target.sprite_ref() if target.sprite_ref else None
+        follower = reader._bubble_for(sprite) if sprite is not None else None
+        bubble = (follower.bubble if follower is not None else None) if sprite is not None else getattr(reader, '_speech_bubble', None)
+        before = bubble.text_presentation_id if bubble is not None else None
+    except (AttributeError, TypeError):
+        target = bubble = before = None
+    if bubble is not None and not target.valid():
+        return False
+    host.show_bubble(text, duration_ms=duration_ms)
+    if bubble is None or not shiboken6.isValid(bubble) or not bubble.text_was_presented(text, before):
+        return False
+    speak_target(target, text, allowed, active=active)
+    return True
 
 
 def speak_displayed(host, text, *, active=False, valid=None):
@@ -83,6 +110,7 @@ def speech_identity(config):
     # Ordinary self-talk also ships without chat. Do not instantiate ChatSettings.
     keys = ('character', 'chat', 'dialogue_mode', 'dialogue_phrases', 'companion_interaction',
             'self_talk_enabled', 'click_show_self_talk', 'proactive_chat', 'todo_reminder_enabled',
+            'file_interpret', 'proactive_screen',
             'voice_chime_voice', 'voice_chime_rate', 'voice_chime_pitch', 'voice_chime_volume')
     try:
         stamp = config.path.stat().st_mtime_ns
@@ -101,7 +129,7 @@ def speech_request(target, text, valid, *, active=False):
     host = target.host_ref()
     sprite = target.sprite_ref() if target.sprite_ref else None
     follower = host._bubble_for(sprite) if sprite is not None else None
-    bubble = follower.bubble if follower is not None else getattr(host, '_speech_bubble', None)
+    bubble = (follower.bubble if follower is not None else None) if sprite is not None else getattr(host, '_speech_bubble', None)
     if bubble is None or not bubble.text_was_presented(text, bubble.text_presentation_id-1):
         return
     receipt = bubble.text_presentation_id

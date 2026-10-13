@@ -166,6 +166,7 @@ class FileInterpretController(QObject):
         self._started_at = 0.0
         self._title = ""
         self._session: Any = None
+        self._reply_character = None
         self._heartbeat = QTimer(self)
         self._heartbeat.timeout.connect(self._on_heartbeat)
 
@@ -271,6 +272,7 @@ class FileInterpretController(QObject):
             )
 
         character_id = str(self._target.cfg.get("character", DEFAULT_CHARACTER))
+        self._reply_character = character_id
         system_prompt = self._prompt_builder.effective_system_prompt(settings, character_id)
         session = self._store.create(character_id, settings.active_provider, system_prompt)
         session.custom_title = (
@@ -326,7 +328,20 @@ class FileInterpretController(QObject):
             self._session = synced
         self._state = "idle"
         duration = int(max(6000, min(20000, 4000 + len(reply) * 150)))
-        self._target.show_bubble(f"解读完成：{reply}", duration_ms=duration)
+        if not reply.strip():
+            self._target.show_bubble(f"解读完成：{reply}", duration_ms=duration)
+            return  # no generated AI content: keep the original status silent
+        from .companion.head_speech import present_reply
+        import shiboken6
+        generation, target = self._offer_generation, self._target
+        character = self._reply_character
+        def current():
+            return (shiboken6.isValid(self) and generation == self._offer_generation
+                    and self._target is target and self._state == 'idle'
+                    and _interpret_enabled(target.cfg)
+                    and str(target.cfg.get('character', DEFAULT_CHARACTER)) == character
+                    and (not callable(getattr(target, 'valid', None)) or target.valid()))
+        present_reply(target, f"解读完成：{reply}", duration, valid=current)
 
     def _on_error(self, request_id: str, message: str) -> None:
         if request_id != self._request_id:

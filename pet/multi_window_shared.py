@@ -94,6 +94,13 @@ class MultiWindowProxy:
                 return
 
     # ---- 提醒扇出（交互式提醒：审批/问题/控制级 Watchdog）----
+    def show_proactive_reply(self, text, duration_ms, *, valid):
+        from .companion.head_speech import present_reply
+        for window in self._visible_windows():
+            if hasattr(window, 'show_bubble'):
+                return present_reply(window, text, duration_ms, active=True, valid=valid)
+        return False
+
     def show_alert(self, text: str, *, subtitle: str = "", duration_ms: int = 0,
                    buttons: list | None = None, sticky: bool = True,
                    alert_id: str = "", priority: int = 3,

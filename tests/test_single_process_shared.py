@@ -296,8 +296,12 @@ def test_shared_shared_proactive_broadcasts_bubble(tmp_path, app, monkeypatch):
         assert shell._shared.proactive.limiter.state_path == \
             (config.dir / "proactive_screen_state.json")
 
-        # 「我看」先兆气泡只发首个可见窗
-        shell._shared.proactive._bridge._forward_bubble("hello", 1000)
+        # Real final-reply bridge carries cancellation generation and role.
+        # The original first-visible-window selection must still hold.
+        config.set('proactive_screen', {'enabled': True})
+        watcher = shell._shared.proactive
+        watcher._bridge.bubble_requested.emit(
+            "hello", 1000, watcher._generation, str(config.get('character', '')))
         assert "hello" in primary_win.bubbles
         assert "hello" not in second_win.bubbles
     finally:

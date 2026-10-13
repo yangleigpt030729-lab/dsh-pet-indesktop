@@ -230,6 +230,8 @@ class _TTSWorker(threading.Thread):
         # 惰性导入：只在真的要合成的后台线程里付这笔 import 成本。
         import edge_tts
 
+        from .edge_tts_compat import configure_endpoint
+        configure_endpoint(edge_tts)
         communicate = edge_tts.Communicate(
             self._text,
             voice,

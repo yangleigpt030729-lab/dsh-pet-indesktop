@@ -42,6 +42,7 @@ def test_head_can_keep_original_audio_channel_without_ordinary_click(tmp_path):
     cfg = Config(base=tmp_path)
     cfg.set('click_show_self_talk', False)
     cfg.set('self_talk_speak_enabled', True)
+    cfg.set('file_interpret', {'enabled': False})  # this test isolates the head-only consumer
     cfg.set('companion_interaction', {'head_touch_enabled': True})
     shell = AppShell(app, cfg)
     try:

@@ -250,6 +250,8 @@ if (-not $SkipBuild) {
 
 $appDir = Join-Path $root "dist-onedir\$name"
 if (-not (Test-Path $appDir)) { throw "Build output missing: $appDir" }
+& $PythonExe -X utf8 scripts\verify_bundle_tts.py --app-dir $appDir
+if ($LASTEXITCODE -ne 0) { throw "Bundled Microsoft TTS compatibility check failed: $LASTEXITCODE" }
 
 # ---------- Bridge 零依赖防线（2026-09 事故：缺 @deepseek-ai/dsh-llm 导致
 # 用户整个 dsh 插件树加载失败） ----------
