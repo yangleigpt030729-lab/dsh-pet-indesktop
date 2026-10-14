@@ -30,3 +30,7 @@
 ## 说明
 
 EXE 不由 Git 分支切换自动生成。PyInstaller 的 `--name` 或 spec 中的 `name=` 会直接决定 `dist` 下的文件名；如果使用稳定版名称运行构建命令，就会覆盖原文件。因此稳定版和聊天版必须使用不同输出名及独立构建目录。
+
+## 2026-10-14：大肥鱼 v1.0.1 独立候选
+
+最新源码基线843142c；`build_windows_installer.ps1`现在必须在全新WorkDir先执行现有安全PyInstaller构建，再用新portable ZIP生成专用`dafeiyu-v1.iss`安装器1.0.1；不接受旧ZIP或覆盖旧输出。允许合法D/E盘专用目录；原AppId同目录升级，换盘先官方卸载且保留数据，再新目录安装。旧v1.0.0及稳定版产物/证据冻结保留。见[1.0.1构建与验收](WINDOWS-INSTALLER-V101-ACCEPTANCE.md)及[报告](PR-REPORT-INSTALLER-V101-2026-10-14.md)。当前Windows Setup NOT BUILT，原生安装/升级/卸载NOT TESTED。

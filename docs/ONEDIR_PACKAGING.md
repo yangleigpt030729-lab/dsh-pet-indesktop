@@ -113,3 +113,8 @@ python -m pytest -q tests/test_config_key_migration.py
 ## 2026-10-14：大肥鱼 v1.0.0 安装器封装
 
 新增独立 `scripts/build_windows_installer.ps1` / `packaging/dafeiyu-v1.iss`，消费原已验收 portable ZIP，不能仅复制EXE；当前真实ZIP在根目录放EXE与_internal。独立固定AppId、中文产品名及安装器1.0.0不改变上游内部版本/旧通用安装器。原TTS/Qt/资源/编码及安全门禁继续执行，按原字节复制完整payload；升级/卸载不强杀、不删除APPDATA/缓存/凭据。新输出目录、一步构建和未签名/自启/卸载验收见[安装器指南](WINDOWS-INSTALLER-V1-ACCEPTANCE.md)。用户已确认前轮Windows十项全部成功；本轮原生Setup仍NOT BUILT/NOT TESTED，等待Windows执行。
+
+
+## 2026-10-14：大肥鱼 v1.0.1 独立候选
+
+最新源码基线843142c；`build_windows_installer.ps1`现在必须在全新WorkDir先执行现有安全PyInstaller构建，再用新portable ZIP生成专用`dafeiyu-v1.iss`安装器1.0.1；不接受旧ZIP或覆盖旧输出。允许合法D/E盘专用目录；原AppId同目录升级，换盘先官方卸载且保留数据，再新目录安装。旧v1.0.0及稳定版产物/证据冻结保留。见[1.0.1构建与验收](WINDOWS-INSTALLER-V101-ACCEPTANCE.md)及[报告](PR-REPORT-INSTALLER-V101-2026-10-14.md)。当前Windows Setup NOT BUILT，原生安装/升级/卸载NOT TESTED。

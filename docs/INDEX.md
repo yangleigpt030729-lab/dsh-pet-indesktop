@@ -286,3 +286,11 @@
 | 文档 | 一句话内容 | 何时必读 |
 |---|---|---|
 | [ONLINE-UPDATE.md](ONLINE-UPDATE.md) | Core 安装包在线更新协议：多源 manifest、真实二进制镜像、大小/SHA-256 校验、Windows Inno Setup 自动安装和回滚边界。 | **改自动更新、更新设置页、发布 manifest、下载校验或安装器重启行为前必读**；网络出口问题另读 [NETWORK-PROXY-AND-VPN-2026-09-22.md](NETWORK-PROXY-AND-VPN-2026-09-22.md)。 |
+
+
+## v1.0.1 安装器与 PR 报告存档
+
+| 文档 | 一句话内容 | 何时必读 |
+|---|---|---|
+| [`WINDOWS-INSTALLER-V101-ACCEPTANCE.md`](WINDOWS-INSTALLER-V101-ACCEPTANCE.md) | v1.0.1 从最新源码重新构建、自选目录、同目录升级和卸载换盘。 | 制作或验收大肥鱼1.0.1安装包之前必读。 |
+| [`PR-REPORT-INSTALLER-V101-2026-10-14.md`](PR-REPORT-INSTALLER-V101-2026-10-14.md) | 安装器目录与来源校验修补证据。 | 审查安装目录策略、构建来源或本轮测试时必读。 |

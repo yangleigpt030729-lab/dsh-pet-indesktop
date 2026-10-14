@@ -48,7 +48,7 @@ def test_real_root_zip_is_complete_and_never_changes_source(tmp_path, prefix):
     report = payload.stage(source,dest,manifest)
     assert source.read_bytes() == original
     assert (dest/payload.EXE).read_bytes() == pe()
-    assert report['version'] == '1.0.0' and report['files'][payload.EXE]['size'] == len(pe())
+    assert report['version'] == '1.0.1' and report['files'][payload.EXE]['size'] == len(pe())
     assert payload.verify_directory(dest,manifest) == report
     assert 'voice_chime_cache' not in str(report)
 
@@ -114,9 +114,9 @@ def test_installer_contract_and_bom():
     script=(ROOT/'scripts/build_windows_installer.ps1').read_bytes()
     assert script.startswith(b'\xef\xbb\xbf')
     ps=script.decode('utf-8-sig')
-    for phrase in ('PrivilegesRequired=lowest','AppVersion=1.0.0','DefaultDirName={localappdata}\\Programs\\DaFeiYuDesktopPet',
+    for phrase in ('PrivilegesRequired=lowest','AppVersion=1.0.1','DefaultDirName={localappdata}\\Programs\\DaFeiYuDesktopPet',
                    'CloseApplications=no','RestartApplications=no','ArchitecturesAllowed=x64os','PrepareToInstall',
-                   'InitializeUninstall','dsh-pet-standalone-webm-chat.exe','大肥鱼桌面宠物_Setup_v1.0.0'):
+                   'InitializeUninstall','dsh-pet-standalone-webm-chat.exe','大肥鱼桌面宠物_Setup_v1.0.1'):
         assert phrase in iss
     assert '[UninstallDelete]' not in iss and '[Registry]' not in iss
     assert 'taskkill' not in ps.lower() and 'Stop-Process' not in ps and 'TerminateProcess' not in iss
@@ -126,15 +126,16 @@ def test_installer_contract_and_bom():
     assert 'Test-Path' in ps and 'Start-Transcript' in ps and 'Stop-Transcript' in ps
     assert 'ignoreversion recursesubdirs createallsubdirs' in iss
     assert 'Flags: unchecked; Check: HasExistingAutostart' in iss
-    assert 'UsePreviousAppDir=no' in iss and 'RegDeleteValue' in iss
+    assert 'UsePreviousAppDir=yes' in iss and 'RegDeleteValue' in iss
 
 
 def test_fixed_identity_data_safety_and_signing_contract():
     iss=(ROOT/'packaging/dafeiyu-v1.iss').read_text(encoding='utf-8-sig')
     assert payload.APP_ID in iss and payload.VERSION in iss
-    for operation in ('DelTree(', 'DeleteFile(', 'ForceCloseApplications=', '{userappdata}', '{commonappdata}'):
+    for operation in ('DelTree(', 'DeleteFile(', 'ForceCloseApplications=', '{commonappdata}'):
         assert operation not in iss
     assert "RegQueryStringValue(HKCU64, OwnUninstallKey, 'InstallLocation'" in iss
+    assert "InDirectory(Target, ExpandConstant('{userappdata}'))" in iss
     assert 'PetsRunning(Failed)' in iss and 'DetectionFailed := True' in iss
     assert "WizardIsTaskSelected('migrateautostart') and HasExistingAutostart" in iss
     assert 'Pos(Lowercase(OwnExe), Lowercase(Command)) > 0' in iss
@@ -167,10 +168,9 @@ def test_post_staging_changes_are_rejected(tmp_path,fault):
 @pytest.mark.skipif(__import__('sys').platform != 'win32',reason='Windows PowerShell 5.1 native entry required')
 def test_native_wrapper_refuses_existing_output_without_changes(tmp_path):
     import subprocess
-    source=archive(tmp_path)
     output=tmp_path/'existing';output.mkdir();marker=output/'keep.txt';marker.write_bytes(b'keep')
     result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',
-        str(ROOT/'scripts/build_windows_installer.ps1'),'-PortableZip',str(source),'-OutputDir',str(output)],
+        str(ROOT/'scripts/build_windows_installer.ps1'),'-WorkDir',str(tmp_path/'new-native-build'),'-OutputDir',str(output)],
         capture_output=True,timeout=60)
     assert result.returncode != 0
     assert marker.read_bytes()==b'keep' and list(output.iterdir()) == [marker]
@@ -190,7 +190,7 @@ def test_native_inno_compiles_synthetic_payload_only(tmp_path):
         '/DInstallerIcon='+str(ROOT/'assets/icon.ico'),str(ROOT/'packaging/dafeiyu-v1.iss')],
         capture_output=True,timeout=120)
     assert result.returncode==0, result.stdout+result.stderr
-    assert (output/'大肥鱼桌面宠物_Setup_v1.0.0.exe').stat().st_size>0
+    assert (output/'大肥鱼桌面宠物_Setup_v1.0.1.exe').stat().st_size>0
     # Compiler/contract smoke only. Never install or launch this synthetic executable.
 
 
@@ -212,3 +212,69 @@ def test_uppercase_json_still_rejects_private_api_fields(tmp_path):
     with pytest.raises(ValueError):
         payload.stage(archive(tmp_path,content),tmp_path/'payload',tmp_path/'manifest.json')
     assert not (tmp_path/'payload').exists()
+
+
+def test_v101_exposes_real_directory_selection_and_safe_relocation_contract():
+    iss=(ROOT/'packaging/dafeiyu-v1.iss').read_text(encoding='utf-8-sig')
+    assert 'DisableDirPage=no' in iss
+    assert 'UsePreviousAppDir=yes' in iss
+    assert 'AppVersion=1.0.1' in iss
+    assert 'VersionInfoVersion=1.0.1.0' in iss
+    assert 'OutputBaseFilename=大肥鱼桌面宠物_Setup_v1.0.1' in iss
+    assert "Target := RemoveBackslashUnlessRoot(ExpandFileName(ExpandConstant('{app}')))" in iss
+    assert "ValidateInstallDirectory(Target)" in iss
+    assert "DirectoryIsEmpty(Target)" in iss
+    assert "FileExists(AddBackslash(Target) + 'unins000.dat')" in iss
+    assert "FileExists(AddBackslash(Target) + 'unins000.exe')" in iss
+    assert 'HasReparseAncestor(Target)' in iss
+    assert '请先从 Windows 应用和功能正常卸载旧版本' in iss
+    assert '只允许安装到当前用户的固定应用目录' not in iss
+    assert 'RegDeleteKey' not in iss and 'DelTree(' not in iss
+
+
+def test_v101_wrapper_always_builds_current_source_in_new_workdir():
+    ps=(ROOT/'scripts/build_windows_installer.ps1').read_text(encoding='utf-8-sig')
+    assert '[string]$PortableZip' not in ps
+    assert "FishReleaseV101" in ps and "FishCompanionBuildV101" in ps
+    assert 'build_windows_companion.ps1' in ps
+    assert 'verify_installer_source.py' in ps
+    assert ps.index('build_windows_companion.ps1') < ps.index('--zip $installerInput')
+    assert ps.count('verify_installer_source.py') >= 2
+    assert "version = '1.0.1'" in ps
+    assert 'source-build-manifest.json' in ps
+    assert '大肥鱼桌面宠物_Setup_v1.0.1.exe' in ps
+    assert 'dsh-pet.iss' not in ps
+
+
+@pytest.mark.parametrize('guard', [
+    "SameDirectory(Target, ExtractFileDrive(Target) + '\\')",
+    "InDirectory(Target, ExpandConstant('{win}'))",
+    "InDirectory(Target, ExpandConstant('{userappdata}'))",
+    "SameDirectory(Target, GetEnv('USERPROFILE'))",
+    'FileExists(Target) or HasReparseAncestor(Target)',
+    'not SameDirectory(PreviousDir, Target)',
+    'DirExists(Target) and not DirectoryIsEmpty(Target)',
+])
+def test_directory_safety_guards_use_selected_target_and_fail_closed(guard):
+    # Static Inno contract only. Native execution of these branches is in the Win guide.
+    iss=(ROOT/'packaging/dafeiyu-v1.iss').read_text(encoding='utf-8-sig')
+    policy=iss.split('function ValidateInstallDirectory(Target: String): String;',1)[1].split('function PrepareToInstall',1)[0]
+    prepare=iss.split('function PrepareToInstall',1)[1].split('procedure CurStepChanged',1)[0]
+    assert guard in policy
+    assert "RegKeyExists(HKCU64, OwnUninstallKey)" in policy
+    assert 'Result := ValidateInstallDirectory(Target)' in prepare
+    assert 'if Result <> \'\' then Exit' in prepare
+    assert "Target := ExpandConstant('{localappdata}" not in prepare
+    assert "RegWrite" not in policy and 'DelTree' not in policy
+
+
+def test_v101_instructions_require_fresh_source_and_single_line_powershell():
+    guide=(ROOT/'docs/WINDOWS-INSTALLER-V101-ACCEPTANCE.md').read_text()
+    import re
+    commands=re.findall(r'```powershell\n(.*?)\n```',guide,re.S)
+    assert len(commands)>10
+    assert all(len(command.splitlines())==1 and command.strip() for command in commands)
+    build=[c for c in commands if '-File scripts\\build_windows_installer.ps1' in c]
+    assert len(build)==1 and '-WorkDir' in build[0] and '-OutputDir' in build[0]
+    assert '-PortableZip' not in build[0]
+    assert 'Windows Setup NOT BUILT' in guide and '正常卸载旧' in guide

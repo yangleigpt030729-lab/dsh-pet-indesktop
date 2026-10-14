@@ -1,5 +1,7 @@
 # 大肥鱼桌面宠物 v1.0.0：Windows 原生安装包构建与验收
 
+> 历史 v1.0.0 快照，原产物与证据保留。当前 v1.0.1 必须按[新指南](WINDOWS-INSTALLER-V101-ACCEPTANCE.md)从最新源码重新构建；不要在新分支使用本页旧 PortableZip 命令。
+
 基线为 `feature/win10-companion-memory` 的 `533eb1c`。用户已在 Windows10 22H2 x64 确认十项增量全部通过：微软语音、音量/静音/热更新/双向同步、静音投喂统计/及时回复朗读、识屏前置与最终回复、岛聊天/授权/动画/拖拽。**本轮仅封装安装器**，这些成功记录保留；新 Setup 的编译、安装、升级、卸载及 Windows11 均 **NOT TESTED**，直到本机执行。关联[交付报告](PR-REPORT-INSTALLER-V100-2026-10-14.md)、[onedir说明](ONEDIR_PACKAGING.md)、[原便携验收指南](WINDOWS10-COMPANION-ACCEPTANCE.md)。
 
 ## 1. 准备一次，不动旧包和数据

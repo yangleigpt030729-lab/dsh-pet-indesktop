@@ -15,7 +15,7 @@ from scripts.slim_bundle import REQUIRED_GLOBS, verify_required, find_forbidden
 
 EXE = 'dsh-pet-standalone-webm-chat.exe'
 APP_ID = '{662C52E9-287D-43C4-90DE-4A0B9061C7C4}'  # Fixed across all companion installer upgrades.
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 REQUIRED = (*REQUIRED_GLOBS, '_internal/python3??.dll',
             '_internal/imageio_ffmpeg/binaries/ffmpeg-win-x86_64-*.exe',
             '_internal/assets/characters/shenshen/videos/manifest.json',
